@@ -1,7 +1,7 @@
 #!/bin/bash
 # WP Server - Service Restart - Setup
 # This script will configure the sudoers file and create a wrapper script for a user to run the 'wp-restart' command.
-# Version: 1.1.0
+# Version: 1.1.1
 
 # script name
 SCRIPT_NAME="wp-restart"
@@ -12,6 +12,8 @@ LOCAL_INSTALL_DIR=".local/bin"
 CONFIG_FILE="$INSTALL_DIR/api.conf"
 # Get hostname
 HOSTNAME=$(hostname -f)
+# Get script directory
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
 # Set API key & URL
 while IFS='=' read -r key value; do
@@ -24,6 +26,10 @@ while IFS='=' read -r key value; do
       ;;
   esac
 done < "$CONFIG_FILE"
+
+# Set permissions
+chmod 0600 "$CONFIG_FILE"
+chmod 0700 "$SCRIPT_DIR"/restart.sh
 
 # Get ALL servers from API
 SERVERS_JSON=$(curl -s -X GET \
