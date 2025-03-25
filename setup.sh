@@ -15,28 +15,6 @@ HOSTNAME=$(hostname -f)
 # Get script directory
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
-# Set API key & URL
-while IFS='=' read -r key value; do
-  case "$key" in
-    API_KEY)
-      API_KEY="$value"
-      ;;
-    API_URL)
-      API_URL="$value"
-      ;;
-  esac
-done < "$CONFIG_FILE"
-
-# Set permissions
-chmod 0600 "$CONFIG_FILE"
-chmod 0700 "$SCRIPT_DIR"/restart.sh
-
-# Get ALL servers from API
-SERVERS_JSON=$(curl -s -X GET \
-  "$API_URL/?limit=100" \
-  -H "Accept: application/json" \
-  -H "Authorization: Bearer $API_KEY")
-
 # confirmation helper
 function get_confirmation() {
     while true; do
@@ -50,6 +28,63 @@ function get_confirmation() {
     done
     return 0
 }
+
+#######################################################
+#### Check api.conf
+#######################################################
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  echo "ERROR: Configuration file not found: $CONFIG_FILE"
+
+  # Prompt user to create config file
+  if ( get_confirmation "Create a new configuration file?" ); then
+    echo "Creating new configuration file: $CONFIG_FILE"
+    # prompt for API_KEY
+    read -p "Enter API key: " API_KEY
+    # prompt for API_URL  (e.g. https://api.wpnet.nz/v1/servers)
+    read -p "Enter API URL: " API_URL
+    # Write to config file
+    echo "API_KEY=$API_KEY" > "$CONFIG_FILE"
+    echo "API_URL=$API_URL" >> "$CONFIG_FILE"
+    echo "'$CONFIG_FILE' file created."
+  else
+    echo "Cancelled"
+    exit 1
+  fi
+else
+  echo "Configuration file found: $CONFIG_FILE"
+  # Prompt user to edit config file
+  if ( get_confirmation "Edit configuration file?" ); then
+    nano "$CONFIG_FILE"
+  fi
+fi
+
+# Set API key & URL
+while IFS='=' read -r key value; do
+  case "$key" in
+    API_KEY)
+      API_KEY="$value"
+      ;;
+    API_URL)
+      API_URL="$value"
+      ;;
+  esac
+done < "$CONFIG_FILE"
+
+if [[ -z "$API_KEY" || -z "$API_URL" ]]; then
+  echo "ERROR: Configuration file is missing API_KEY or API_URL"
+  exit 1
+fi
+
+# Set permissions
+chmod 0600 "$CONFIG_FILE"
+chmod 0700 "$SCRIPT_DIR"/restart.sh
+
+# Get ALL servers from API
+SERVERS_JSON=$(curl -s -X GET \
+  "$API_URL/?limit=100" \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer $API_KEY")
 
 #######################################################
 #### SET SERVER_ID
