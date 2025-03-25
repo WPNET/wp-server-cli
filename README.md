@@ -12,7 +12,8 @@ echo "API_KEY={YOUR_API_KEY}" >> api.conf
 echo "API_URL={YOUR_API_URL}" >> api.conf
 
 # Or, just run setup.sh and follow the prompts
-# If api.conf doesn't exist, it will be created and populated with API_KEY and API_URL from user prompts
+# If 'api.conf' doesn't exist, it will be created and populated
+# with API_KEY and API_URL from user prompts
 bash setup.sh
 
 # The user specified during set up can now login and run:
