@@ -23,4 +23,10 @@ bash setup.sh
 
 # login as the user specified during set up and run:
 wp-restart <service_name>
+
+# Run with no arguments for help
+Usage:    wp-restart <service>
+Services: PHP:          php (restarts all runtime versions)
+          Database:     db | mysql
+          Web server:   web | nginx
 ```
