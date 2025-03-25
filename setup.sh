@@ -159,10 +159,12 @@ else
     fi
 fi
 
+#######################################################
+#### Create wrapper script
+#######################################################
+
 WRAPPER_SCRIPT="$USER_HOME_PATH/$LOCAL_INSTALL_DIR/$SCRIPT_NAME"
-
 printf '#!/bin/bash\n# WP Server - Service Restart wrapper\n# This script will not work without appropriate permissions configured with sudo.\n# Contact WP NET support for help.\nsudo %s/restart.sh "$@"' "$INSTALL_DIR" > "$WRAPPER_SCRIPT"
-
 sudo chown "$SELECTED_USER":"$SELECTED_USER" "$WRAPPER_SCRIPT"
 chmod 0700 "$WRAPPER_SCRIPT"
 
