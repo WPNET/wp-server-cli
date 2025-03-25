@@ -25,6 +25,7 @@ bash setup.sh
 wp-restart <service_name>
 
 # Run with no arguments for help
+wp-restart
 Usage:    wp-restart <service>
 Services: PHP:          php (restarts all runtime versions)
           Database:     db | mysql
