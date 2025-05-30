@@ -1,6 +1,14 @@
 #!/bin/bash
 # WP Server - Service Restart
-# Version: 1.0.0
+# Version: 1.1.0
+
+# Check if mysql-server package is installed
+dpkg -s mysql-server &> /dev/null
+if [ $? -eq 0 ]; then
+    MYSQL_SERVER_INSTALLED=true
+else
+    MYSQL_SERVER_INSTALLED=false
+fi
 
 SERVICE_ALIAS="$1"
 CONFIG_FILE="/opt/wp-restart/api.conf"
@@ -30,8 +38,10 @@ BLUE='\e[34m'
 if [ -z "$SERVICE_ALIAS" ]; then
   echo -e "${CYAN}Usage:${RESET}    wp-restart ${GREEN}<service>${RESET}"
   echo -e "${CYAN}Services:${RESET} PHP:          ${GREEN}php${RESET} (restarts all runtime versions)"
-  echo -e "          Database:     ${GREEN}db${RESET} | ${GREEN}mysql${RESET}"
   echo -e "          Web server:   ${GREEN}web${RESET} | ${GREEN}nginx${RESET}"
+  if $MYSQL_SERVER_INSTALLED; then
+    echo -e "          Database:     ${GREEN}db${RESET} | ${GREEN}mysql${RESET}"
+  fi  
   exit 1
 fi
 
@@ -46,10 +56,15 @@ case "$SERVICE_ALIAS" in
     SERVICE_NAME="mysql"
     ;;
   *)
-    echo "Invalid service alias. Must be one of: nginx, web, php, mysql, db"
+    echo "Invalid service alias. Run script without arguments to see available services."
     exit 1
     ;;
 esac
+
+if [[ ! $MYSQL_SERVER_INSTALLED ]] && [[ $SERVICE_NAME == "mysql" || $SERVICE_NAME == "db" ]]; then
+  echo -e "${YELLOW}Warning:${RESET} MySQL server is not installed. Skipping MySQL service restart."
+  exit 0
+fi
 
 API_URL="$API_URL/$SERVER_ID/services/$SERVICE_NAME/restart"
 
