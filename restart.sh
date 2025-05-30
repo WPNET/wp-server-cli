@@ -1,6 +1,6 @@
 #!/bin/bash
 # WP Server - Service Restart
-# Version: 1.1.0
+# Version: 1.1.1
 
 # Check if mysql-server package is installed
 dpkg -s mysql-server &> /dev/null
@@ -12,6 +12,11 @@ fi
 
 SERVICE_ALIAS="$1"
 CONFIG_FILE="/opt/wp-restart/api.conf"
+
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  echo "Error: API config file not found at $CONFIG_FILE"
+  exit 1
+fi
 
 # Parse API config file
 while IFS='=' read -r key value; do
