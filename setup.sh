@@ -1,10 +1,10 @@
 #!/bin/bash
-# WP Server - Service Restart - Setup
-# This script will configure the sudoers file and create a wrapper script for a user to run the 'wp-restart' command.
-# Version: 1.1.1
+# WP Server - Server Management - Setup
+# This script will configure the sudoers file and create a wrapper script for a user to run the 'wp-server' command.
+# Version: 1.2.0
 
 # script name
-SCRIPT_NAME="wp-restart"
+SCRIPT_NAME="wp-server"
 # install directories
 INSTALL_DIR="/opt/$SCRIPT_NAME"
 LOCAL_INSTALL_DIR=".local/bin"
@@ -78,7 +78,7 @@ fi
 
 # Set permissions
 chmod 0600 "$CONFIG_FILE"
-chmod 0700 "$SCRIPT_DIR"/restart.sh
+chmod 0700 "$SCRIPT_DIR"/wp-server.sh
 
 # Get ALL servers from API
 SERVERS_JSON=$(curl -s -X GET \
@@ -163,7 +163,7 @@ if [ ! -f "$SUDOERS_FILE" ]; then
         chmod 0440 $SUDOERS_PATH/*
     fi
     # Define the sudo rules
-    SUDO_RULES="${SELECTED_USER} ALL=(root) NOPASSWD: $INSTALL_DIR/restart.sh"
+    SUDO_RULES="${SELECTED_USER} ALL=(root) NOPASSWD: $INSTALL_DIR/wp-server.sh"
 
     echo "Creating sudoers file at $SUDOERS_FILE"
     echo -e "$SUDO_RULES" > "$SUDOERS_FILE"
@@ -205,7 +205,7 @@ fi
 #######################################################
 
 WRAPPER_SCRIPT="$USER_HOME_PATH/$LOCAL_INSTALL_DIR/$SCRIPT_NAME"
-printf '#!/bin/bash\n# WP Server - Service Restart wrapper\n# This script will not work without appropriate permissions configured with sudo.\n# Contact WP NET support for help.\nsudo %s/restart.sh "$@"' "$INSTALL_DIR" > "$WRAPPER_SCRIPT"
+printf '#!/bin/bash\n# WP Server - Server Management wrapper\n# This script will not work without appropriate permissions configured with sudo.\n# Contact WP NET support for help.\nsudo %s/wp-server.sh "$@"' "$INSTALL_DIR" > "$WRAPPER_SCRIPT"
 sudo chown "$SELECTED_USER":"$SELECTED_USER" "$WRAPPER_SCRIPT"
 chmod 0700 "$WRAPPER_SCRIPT"
 
