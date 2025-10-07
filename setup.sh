@@ -1,7 +1,7 @@
 #!/bin/bash
 # WP Server - Server Management - Setup
 # This script will configure the sudoers file and create a wrapper script for a user to run the 'wp-server' command.
-# Version: 1.2.0
+# Version: 1.3.0
 
 # script name
 SCRIPT_NAME="wp-server"
@@ -29,12 +29,21 @@ function get_confirmation() {
     return 0
 }
 
+UNATTENDED=false
+if [ "$1" == "--unattended" ]; then
+    UNATTENDED=true
+    echo "Running in unattended mode."
+fi
+
 #######################################################
 #### Check api.conf
 #######################################################
 
 if [[ ! -f "$CONFIG_FILE" ]]; then
   echo "ERROR: Configuration file not found: $CONFIG_FILE"
+  if [ "$UNATTENDED" = true ]; then
+      exit 1
+  fi
 
   # Prompt user to create config file
   if ( get_confirmation "Create a new configuration file?" ); then
@@ -53,9 +62,11 @@ if [[ ! -f "$CONFIG_FILE" ]]; then
   fi
 else
   echo "Configuration file found: $CONFIG_FILE"
-  # Prompt user to edit config file
-  if ( get_confirmation "Edit configuration file?" ); then
-    nano "$CONFIG_FILE"
+  if [ "$UNATTENDED" = false ]; then
+    # Prompt user to edit config file
+    if ( get_confirmation "Edit configuration file?" ); then
+      nano "$CONFIG_FILE"
+    fi
   fi
 fi
 
@@ -81,10 +92,7 @@ chmod 0600 "$CONFIG_FILE"
 chmod 0700 "$SCRIPT_DIR"/wp-server.sh
 
 # Get ALL servers from API
-SERVERS_JSON=$(curl -s -X GET \
-  "$API_URL/?limit=100" \
-  -H "Accept: application/json" \
-  -H "Authorization: Bearer $API_KEY")
+SERVERS_JSON=$(curl -s -X GET "$API_URL/?limit=100" -H "Accept: application/json" -H "Authorization: Bearer $API_KEY")
 
 #######################################################
 #### SET SERVER_ID
@@ -105,109 +113,164 @@ echo "Server ID $SERVER_ID written to $CONFIG_FILE"
 #######################################################
 #### Get SELECTED_USER and HOME_PATH
 #######################################################
-
-# Get all users
-USER_LIST=$(getent passwd)
-# Filter users matching "::/sites/"
-SITES_USERS=$(echo "$USER_LIST" | grep "::/sites/")
-
-# Extract usernames and display numbered list
-echo "Available users with /sites directories:"
-echo "$SITES_USERS" | awk -F":" '{print NR ": " $1}'
-
-while true; do
-  # Prompt user for selection
-  read -p "Select a USER (c or x to cancel): " USER_NUM
-
-  case "$USER_NUM" in
-    c|x)
-      echo "Cancelled."
-      exit 1
-      ;;
-    [0-9]*)
-      # Extract selected username
-      SELECTED_USER=$(echo "$SITES_USERS" | awk -F":" "NR==$USER_NUM {print \$1}")
-      # Check if a valid number was entered
-      if [ -z "$SELECTED_USER" ]; then
-        echo "Invalid user. Please try again."
-      else
-        break
-      fi
-      ;;
-    *)
-      echo "Invalid input. Please enter a number, c, or x."
-      ;;
-  esac
-done
-
-# Set user's home directory
-USER_HOME_PATH=$(getent passwd "$SELECTED_USER" | cut -d: -f6)
-echo "Selected user: '${SELECTED_USER}' home directory is: ${USER_HOME_PATH}"
-
-#######################################################
-#### Define the SUDOERS file
-#######################################################
-
-echo "Configuring sudoers file for user '${SELECTED_USER}'"
-SUDOERS_PATH="/etc/sudoers.d"
-SUDOERS_FILE="$SCRIPT_NAME-${SELECTED_USER}"
-SUDOERS_FILE="$SUDOERS_PATH/$SUDOERS_FILE"
-
-# only run if same sudoers config doesn't exist
-if [ ! -f "$SUDOERS_FILE" ]; then
-    # Check if existing sudoers config is OK, before we mess with it
-    echo "Checking sudo syntax with visudo ..."
-    if visudo -c; then
-        echo "Current sudoers syntax is correct."
-    elif ( get_confirmation "CHMOD all files in $SUDOERS_PATH to 0440?" ); then
-        chmod 0440 $SUDOERS_PATH/*
+if [ "$UNATTENDED" = true ]; then
+    # Unattended setup for all site users
+    SITES_USERS=$(getent passwd | grep "::/sites/")
+    if [ -z "$SITES_USERS" ]; then
+        echo "No site users found with home directories in /sites/. Exiting."
+        exit 0
     fi
-    # Define the sudo rules
-    SUDO_RULES="${SELECTED_USER} ALL=(root) NOPASSWD: $INSTALL_DIR/wp-server.sh"
 
-    echo "Creating sudoers file at $SUDOERS_FILE"
-    echo -e "$SUDO_RULES" > "$SUDOERS_FILE"
-    chmod 0440 "$SUDOERS_FILE" # important!
+    echo "$SITES_USERS" | while IFS=: read -r user _ _ _ _ home _; do
+        SELECTED_USER=$user
+        USER_HOME_PATH=$home
+        echo "-------------------------------------------------------"
+        echo "Configuring user: $SELECTED_USER"
 
-    # Verify the syntax using visudo -c -f
-    if visudo -c -f "$SUDOERS_FILE" > /dev/null 2>&1; then
-        echo "Sudoers syntax is correct."
-    else
-        echo "ERROR: Sudoers syntax check failed. Rolling back ..."
-        rm -v "$SUDOERS_FILE"
-        echo -e "\nSudoers configuration failed!"
-        exit 1 # error
-    fi
-    echo -e "\nSudoers configuration complete."
+        # Configure sudoers
+        SUDOERS_PATH="/etc/sudoers.d"
+        SUDOERS_FILE="$SUDOERS_PATH/$SCRIPT_NAME-${SELECTED_USER}"
+
+        if [ ! -f "$SUDOERS_FILE" ]; then
+            echo "Creating sudoers file: $SUDOERS_FILE"
+            SUDO_RULES="${SELECTED_USER} ALL=(root) NOPASSWD: $INSTALL_DIR/wp-server.sh"
+            echo -e "$SUDO_RULES" > "$SUDOERS_FILE"
+            chmod 0440 "$SUDOERS_FILE"
+
+            if visudo -c -f "$SUDOERS_FILE" > /dev/null 2>&1; then
+                echo "Sudoers syntax is correct for ${SELECTED_USER}."
+            else
+                echo "ERROR: Sudoers syntax check failed for ${SELECTED_USER}. Rolling back..."
+                rm -v "$SUDOERS_FILE"
+            fi
+        else
+            echo "Sudoers file for ${SELECTED_USER} already exists. Skipping."
+        fi
+
+        # Create wrapper script
+        WRAPPER_SCRIPT="$USER_HOME_PATH/$LOCAL_INSTALL_DIR/$SCRIPT_NAME"
+        if [ ! -d "$(dirname "$WRAPPER_SCRIPT")" ]; then
+            mkdir -p "$(dirname "$WRAPPER_SCRIPT")"
+            chown "$SELECTED_USER":"$SELECTED_USER" "$(dirname "$WRAPPER_SCRIPT")"
+        fi
+
+        if [ ! -f "$WRAPPER_SCRIPT" ]; then
+            printf '#!/bin/bash\n# WP Server - Server Management wrapper\n# This script will not work without appropriate permissions configured with sudo.\n# Contact WP NET support for help.\nsudo %s/wp-server.sh "$@"' "$INSTALL_DIR" > "$WRAPPER_SCRIPT"
+            chown "$SELECTED_USER":"$SELECTED_USER" "$WRAPPER_SCRIPT"
+            chmod 0700 "$WRAPPER_SCRIPT"
+            echo "Wrapper script created for '${SELECTED_USER}'."
+        else
+            echo "Wrapper script for ${SELECTED_USER} already exists. Skipping."
+        fi
+    done
+    echo "-------------------------------------------------------"
+    echo "Unattended setup complete."
 else
-    echo -e "\nSudoers file already exists."
-    if ( get_confirmation "Display existing sudoers file?" ); then
-        cat "$SUDOERS_FILE"
-    fi
-    if ( ! get_confirmation "Keep existing sudoers file?" ); then
-        rm -v "$SUDOERS_FILE"
+    # Interactive setup for a single user
+    # Get all users
+    USER_LIST=$(getent passwd)
+    # Filter users matching "::/sites/"
+    SITES_USERS=$(echo "$USER_LIST" | grep "::/sites/")
+
+    # Extract usernames and display numbered list
+    echo "Available users with /sites directories:"
+    echo "$SITES_USERS" | awk -F":" '{print NR ": " $1}'
+
+    while true; do
+      # Prompt user for selection
+      read -p "Select a USER (c or x to cancel): " USER_NUM
+
+      case "$USER_NUM" in
+        c|x)
+          echo "Cancelled."
+          exit 1
+          ;;
+        [0-9]*)
+          # Extract selected username
+          SELECTED_USER=$(echo "$SITES_USERS" | awk -F":" "NR==$USER_NUM {print \$1}")
+          # Check if a valid number was entered
+          if [ -z "$SELECTED_USER" ]; then
+            echo "Invalid user. Please try again."
+          else
+            break
+          fi
+          ;;
+        *)
+          echo "Invalid input. Please enter a number, c, or x."
+          ;;
+      esac
+    done
+
+    # Set user's home directory
+    USER_HOME_PATH=$(getent passwd "$SELECTED_USER" | cut -d: -f6)
+    echo "Selected user: '${SELECTED_USER}' home directory is: ${USER_HOME_PATH}"
+
+    #######################################################
+    #### Define the SUDOERS file
+    #######################################################
+
+    echo "Configuring sudoers file for user '${SELECTED_USER}'"
+    SUDOERS_PATH="/etc/sudoers.d"
+    SUDOERS_FILE="$SCRIPT_NAME-${SELECTED_USER}"
+    SUDOERS_FILE="$SUDOERS_PATH/$SUDOERS_FILE"
+
+    # only run if same sudoers config doesn't exist
+    if [ ! -f "$SUDOERS_FILE" ]; then
+        # Check if existing sudoers config is OK, before we mess with it
         echo "Checking sudo syntax with visudo ..."
-        # if visudo -c > /dev/null 2>&1; then
         if visudo -c; then
+            echo "Current sudoers syntax is correct."
+        elif ( get_confirmation "CHMOD all files in $SUDOERS_PATH to 0440?" ); then
+            chmod 0440 $SUDOERS_PATH/*
+        fi
+        # Define the sudo rules
+        SUDO_RULES="${SELECTED_USER} ALL=(root) NOPASSWD: $INSTALL_DIR/wp-server.sh"
+
+        echo "Creating sudoers file at $SUDOERS_FILE"
+        echo -e "$SUDO_RULES" > "$SUDOERS_FILE"
+        chmod 0440 "$SUDOERS_FILE" # important!
+
+        # Verify the syntax using visudo -c -f
+        if visudo -c -f "$SUDOERS_FILE" > /dev/null 2>&1; then
             echo "Sudoers syntax is correct."
         else
-            echo "ERROR: Sudoers syntax check failed! There may be a problem, check $SUDOERS_PATH/"
+            echo "ERROR: Sudoers syntax check failed. Rolling back ..."
+            rm -v "$SUDOERS_FILE"
+            echo -e "\nSudoers configuration failed!"
+            exit 1 # error
         fi
-        echo -e "\nExiting ... you will need to re-run this script to create a new sudoers file."
-        exit
+        echo -e "\nSudoers configuration complete."
     else
-        echo "Continuing with existing sudoers config ..."
+        echo -e "\nSudoers file already exists."
+        if ( get_confirmation "Display existing sudoers file?" ); then
+            cat "$SUDOERS_FILE"
+        fi
+        if ( ! get_confirmation "Keep existing sudoers file?" ); then
+            rm -v "$SUDOERS_FILE"
+            echo "Checking sudo syntax with visudo ..."
+            # if visudo -c > /dev/null 2>&1; then
+            if visudo -c; then
+                echo "Sudoers syntax is correct."
+            else
+                echo "ERROR: Sudoers syntax check failed! There may be a problem, check $SUDOERS_PATH/"
+            fi
+            echo -e "\nExiting ... you will need to re-run this script to create a new sudoers file."
+            exit
+        else
+            echo "Continuing with existing sudoers config ..."
+        fi
     fi
+
+    #######################################################
+    #### Create wrapper script
+    #######################################################
+
+    WRAPPER_SCRIPT="$USER_HOME_PATH/$LOCAL_INSTALL_DIR/$SCRIPT_NAME"
+    printf '#!/bin/bash\n# WP Server - Server Management wrapper\n# This script will not work without appropriate permissions configured with sudo.\n# Contact WP NET support for help.\nsudo %s/wp-server.sh "$@"' "$INSTALL_DIR" > "$WRAPPER_SCRIPT"
+    sudo chown "$SELECTED_USER":"$SELECTED_USER" "$WRAPPER_SCRIPT"
+    chmod 0700 "$WRAPPER_SCRIPT"
+
+    echo "The user '${SELECTED_USER}' can now login and run: $SCRIPT_NAME <service>"
 fi
 
-#######################################################
-#### Create wrapper script
-#######################################################
-
-WRAPPER_SCRIPT="$USER_HOME_PATH/$LOCAL_INSTALL_DIR/$SCRIPT_NAME"
-printf '#!/bin/bash\n# WP Server - Server Management wrapper\n# This script will not work without appropriate permissions configured with sudo.\n# Contact WP NET support for help.\nsudo %s/wp-server.sh "$@"' "$INSTALL_DIR" > "$WRAPPER_SCRIPT"
-sudo chown "$SELECTED_USER":"$SELECTED_USER" "$WRAPPER_SCRIPT"
-chmod 0700 "$WRAPPER_SCRIPT"
-
-echo "The user '${SELECTED_USER}' can now login and run: $SCRIPT_NAME <service>"
-exit
+exit 0
