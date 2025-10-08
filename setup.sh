@@ -1,19 +1,17 @@
 #!/bin/bash
 # WP Server - Server Management - Setup
 # This script will configure the sudoers file and create a wrapper script for a user to run the 'wp-server' command.
-# Version: 1.3.0
+# Version: 1.3.2
 
 # script name
 SCRIPT_NAME="wp-server"
 # install directories
-INSTALL_DIR="/opt/$SCRIPT_NAME"
+INSTALL_DIR="$(dirname "$(readlink -f "$0")")"
 LOCAL_INSTALL_DIR=".local/bin"
 # Configuration file
 CONFIG_FILE="$INSTALL_DIR/api.conf"
 # Get hostname
 HOSTNAME=$(hostname -f)
-# Get script directory
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 
 # confirmation helper
 function get_confirmation() {
@@ -39,35 +37,51 @@ fi
 #### Check api.conf
 #######################################################
 
-if [[ ! -f "$CONFIG_FILE" ]]; then
-  echo "ERROR: Configuration file not found: $CONFIG_FILE"
-  if [ "$UNATTENDED" = true ]; then
-      exit 1
-  fi
-
-  # Prompt user to create config file
-  if ( get_confirmation "Create a new configuration file?" ); then
-    echo "Creating new configuration file: $CONFIG_FILE"
-    # prompt for API_KEY
-    read -p "Enter API key: " API_KEY
-    # prompt for API_URL  (e.g. https://api.wpnet.nz/v1/servers)
-    read -p "Enter API URL: " API_URL
-    # Write to config file
-    echo "API_KEY=$API_KEY" > "$CONFIG_FILE"
-    echo "API_URL=$API_URL" >> "$CONFIG_FILE"
-    echo "'$CONFIG_FILE' file created."
-  else
-    echo "Cancelled"
-    exit 1
-  fi
-else
-  echo "Configuration file found: $CONFIG_FILE"
-  if [ "$UNATTENDED" = false ]; then
-    # Prompt user to edit config file
-    if ( get_confirmation "Edit configuration file?" ); then
-      nano "$CONFIG_FILE"
+if [ "$UNATTENDED" = true ]; then
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+        echo "ERROR: Configuration file not found: $CONFIG_FILE"
+        exit 1
     fi
-  fi
+
+    if ! grep -q "^API_KEY=." "$CONFIG_FILE" || \
+       ! grep -q "^API_URL=." "$CONFIG_FILE" || \
+       ! grep -q "^SERVER_ID=." "$CONFIG_FILE"; then
+        echo "ERROR: In unattended mode, api.conf must exist and contain non-empty API_KEY, API_URL, and SERVER_ID."
+        exit 1
+    fi
+    echo "Configuration file is valid for unattended mode."
+else # Interactive mode
+    if [[ ! -f "$CONFIG_FILE" ]]; then
+      echo "ERROR: Configuration file not found: $CONFIG_FILE"
+
+      # Prompt user to create config file
+      if ( get_confirmation "Create a new configuration file?" ); then
+        echo "Creating new configuration file: $CONFIG_FILE"
+        # prompt for API_KEY
+        read -p "Enter API key: " API_KEY
+        # prompt for API_URL
+        DEFAULT_API_URL="https://api.spinupwp.app/v1/servers"
+        read -p "Enter API URL [$DEFAULT_API_URL]: " API_URL
+        API_URL=${API_URL:-$DEFAULT_API_URL}
+        # Write to config file
+        echo "API_KEY=$API_KEY" > "$CONFIG_FILE"
+        echo "API_URL=$API_URL" >> "$CONFIG_FILE"
+        echo "'$CONFIG_FILE' file created."
+      else
+        echo "Cancelled"
+        exit 1
+      fi
+    else
+      echo "Configuration file found: $CONFIG_FILE"
+      if grep -q "^SERVER_ID=." "$CONFIG_FILE"; then
+          echo "Server ID found in config file. Skipping configuration edit."
+      else
+        # Prompt user to edit config file
+        if ( get_confirmation "Edit configuration file?" ); then
+          nano "$CONFIG_FILE"
+        fi
+      fi
+    fi
 fi
 
 # Set API key & URL
@@ -89,26 +103,28 @@ fi
 
 # Set permissions
 chmod 0600 "$CONFIG_FILE"
-chmod 0700 "$SCRIPT_DIR"/wp-server.sh
+chmod 0700 "$INSTALL_DIR"/wp-server.sh
 
-# Get ALL servers from API
-SERVERS_JSON=$(curl -s -X GET "$API_URL/?limit=100" -H "Accept: application/json" -H "Authorization: Bearer $API_KEY")
+if [ "$UNATTENDED" = false ]; then
+    # Get ALL servers from API
+    SERVERS_JSON=$(curl -s -X GET "$API_URL/?limit=100" -H "Accept: application/json" -H "Authorization: Bearer $API_KEY")
 
-#######################################################
-#### SET SERVER_ID
-#######################################################
+    #######################################################
+    #### SET SERVER_ID
+    #######################################################
 
-# Find server ID based on hostname
-SERVER_ID=$(echo "$SERVERS_JSON" | jq -r ".data[] | select(.name == \"$HOSTNAME\") | .id")
-echo "Server $HOSTNAME is server ID: $SERVER_ID"
+    # Find server ID based on hostname
+    SERVER_ID=$(echo "$SERVERS_JSON" | jq -r ".data[] | select(.name == \"$HOSTNAME\") | .id")
+    echo "Server $HOSTNAME is server ID: $SERVER_ID"
 
-# Find and replace SERVER_ID in config file
-if grep -q "^SERVER_ID=" "$CONFIG_FILE"; then
-  sed -i "s/^SERVER_ID=.*/SERVER_ID=$SERVER_ID/" "$CONFIG_FILE"
-else
-  echo "SERVER_ID=$SERVER_ID" >> "$CONFIG_FILE"
+    # Find and replace SERVER_ID in config file
+    if grep -q "^SERVER_ID=" "$CONFIG_FILE"; then
+      sed -i "s/^SERVER_ID=.*/SERVER_ID=$SERVER_ID/" "$CONFIG_FILE"
+    else
+      echo "SERVER_ID=$SERVER_ID" >> "$CONFIG_FILE"
+    fi
+    echo "Server ID $SERVER_ID written to $CONFIG_FILE"
 fi
-echo "Server ID $SERVER_ID written to $CONFIG_FILE"
 
 #######################################################
 #### Get SELECTED_USER and HOME_PATH

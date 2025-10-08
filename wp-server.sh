@@ -1,6 +1,6 @@
 #!/bin/bash
 # WP Server - Service Management
-# Version: 1.3.0
+# Version: 1.3.1
 
 # Check if mysql-server package is installed
 dpkg -s mysql-server &> /dev/null
@@ -107,6 +107,10 @@ if [ -z "$COMMAND" ]; then
 fi
 
 case "$COMMAND" in
+  -v|--version)
+    echo "wp-server version $VERSION"
+    exit 0
+    ;;
   restart)
     if [ -z "$ARGUMENT" ]; then
         echo "Error: restart command requires a service alias."
