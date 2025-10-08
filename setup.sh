@@ -13,6 +13,8 @@ CONFIG_FILE="$INSTALL_DIR/api.conf"
 # Get hostname
 HOSTNAME=$(hostname -f)
 
+DEFAULT_API_URL="https://api.spinupwp.app/v1/servers"
+
 # confirmation helper
 function get_confirmation() {
     while true; do
@@ -58,14 +60,10 @@ else # Interactive mode
         echo "Creating new configuration file: $CONFIG_FILE"
         # prompt for API_KEY
         read -p "Enter API key: " API_KEY
-        # prompt for API_URL
-        DEFAULT_API_URL="https://api.spinupwp.app/v1/servers"
-        read -p "Enter API URL [$DEFAULT_API_URL]: " API_URL
-        API_URL=${API_URL:-$DEFAULT_API_URL}
         # Write to config file
         echo "API_KEY=$API_KEY" > "$CONFIG_FILE"
-        echo "API_URL=$API_URL" >> "$CONFIG_FILE"
-        echo "'$CONFIG_FILE' file created."
+        echo "API_URL=$DEFAULT_API_URL" >> "$CONFIG_FILE"
+        echo "'$CONFIG_FILE' file created with default API_URL."
       else
         echo "Cancelled"
         exit 1
@@ -95,8 +93,19 @@ while IFS='=' read -r key value; do
   esac
 done < "$CONFIG_FILE"
 
-if [[ -z "$API_KEY" || -z "$API_URL" ]]; then
-  echo "ERROR: Configuration file is missing API_KEY or API_URL"
+# Ensure API_URL is set, even if missing from config file
+if [[ -z "$API_URL" ]]; then
+    echo "API_URL not found in $CONFIG_FILE. Setting to default: $DEFAULT_API_URL"
+    API_URL="$DEFAULT_API_URL"
+    if grep -q "^API_URL=" "$CONFIG_FILE"; then
+        sed -i "s|^API_URL=.*|API_URL=$API_URL|" "$CONFIG_FILE"
+    else
+        echo "API_URL=$API_URL" >> "$CONFIG_FILE"
+    fi
+fi
+
+if [[ -z "$API_KEY" ]]; then
+  echo "ERROR: Configuration file is missing API_KEY"
   exit 1
 fi
 
