@@ -44,7 +44,7 @@ function print_usage() {
   echo ""
   echo -e "${CYAN}Commands:${RESET}"
   echo -e "  ${GREEN}restart <service>${RESET}   Restart a service"
-  echo -e "  ${GREEN}timeout${RESET}             Set PHP and Nginx timeouts for the current site"
+  echo -e "  ${GREEN}timeout [-s <seconds>]${RESET} Set PHP and Nginx timeouts for the current site"
   echo ""
   echo -e "${CYAN}Services for 'restart':${RESET}"
   echo -e "  PHP:          ${GREEN}php${RESET} (restarts all runtime versions)"
@@ -119,6 +119,16 @@ case "$COMMAND" in
     restart_service "$ARGUMENT"
     ;;
   timeout)
+    SET_TIMEOUT_VALUE=""
+    # Parse optional -s or --set flag
+    if [ "$ARGUMENT" == "-s" ] || [ "$ARGUMENT" == "--set" ]; then
+        SET_TIMEOUT_VALUE="$3"
+        if ! [[ "$SET_TIMEOUT_VALUE" =~ ^[0-9]+$ ]]; then
+            echo "Error: Invalid timeout value provided with -s/--set. Please provide a number."
+            exit 1
+        fi
+    fi
+
     CURRENT_USER="$SUDO_USER"
     if [ -z "$CURRENT_USER" ]; then
         echo "Error: Could not determine the user who ran this command. This script must be run with sudo by a non-root user."
@@ -131,29 +141,43 @@ case "$COMMAND" in
     USER_INI_PATH="/sites/$SITE_NAME/files/.user.ini"
     TIMEOUT_VALUE=""
 
-    # Try to read existing timeout value
-    if [ -f "$USER_INI_PATH" ]; then
-        TIMEOUT_VALUE=$(grep "max_execution_time" "$USER_INI_PATH" | cut -d'=' -f2 | tr -d ' ' | sed 's/[^0-9]*//g')
-        if [ -n "$TIMEOUT_VALUE" ]; then
-            echo "Found existing PHP timeout of $TIMEOUT_VALUE seconds in $USER_INI_PATH"
-        else
-            echo "No valid 'max_execution_time' found in existing $USER_INI_PATH."
+    if [ -n "$SET_TIMEOUT_VALUE" ]; then
+        TIMEOUT_VALUE="$SET_TIMEOUT_VALUE"
+        echo "Using provided timeout value: $TIMEOUT_VALUE seconds."
+    else
+        # Try to read existing timeout value
+        if [ -f "$USER_INI_PATH" ]; then
+            TIMEOUT_VALUE=$(grep "max_execution_time" "$USER_INI_PATH" | cut -d'=' -f2 | tr -d ' ' | sed 's/[^0-9]*//g')
+            if [ -n "$TIMEOUT_VALUE" ]; then
+                echo "Found existing PHP timeout of $TIMEOUT_VALUE seconds in $USER_INI_PATH"
+            else
+                echo "No valid 'max_execution_time' found in existing $USER_INI_PATH."
+            fi
+        fi
+
+        # If TIMEOUT_VALUE is still empty, prompt the user
+        if [ -z "$TIMEOUT_VALUE" ]; then
+            read -p "Enter desired PHP and Nginx timeout value in seconds: " USER_INPUT_TIMEOUT
+            # Validate input
+            if ! [[ "$USER_INPUT_TIMEOUT" =~ ^[0-9]+$ ]]; then
+                echo "Error: Invalid input. Please provide a number."
+                exit 1
+            fi
+            TIMEOUT_VALUE="$USER_INPUT_TIMEOUT"
         fi
     fi
 
-    # If TIMEOUT_VALUE is still empty, prompt the user
-    if [ -z "$TIMEOUT_VALUE" ]; then
-        read -p "Enter desired PHP and Nginx timeout value in seconds: " USER_INPUT_TIMEOUT
-        # Validate input
-        if ! [[ "$USER_INPUT_TIMEOUT" =~ ^[0-9]+$ ]]; then
-            echo "Error: Invalid input. Please provide a number."
-            exit 1
-        fi
-        TIMEOUT_VALUE="$USER_INPUT_TIMEOUT"
-
-        # Create/update .user.ini
+    # Create/update .user.ini if TIMEOUT_VALUE was set or changed
+    if [ -n "$TIMEOUT_VALUE" ]; then
         mkdir -p "$(dirname "$USER_INI_PATH")"
-        if grep -q "max_execution_time" "$USER_INI_PATH"; then
+        CURRENT_INI_TIMEOUT=""
+        if [ -f "$USER_INI_PATH" ]; then
+            CURRENT_INI_TIMEOUT=$(grep "max_execution_time" "$USER_INI_PATH" | cut -d'=' -f2 | tr -d ' ' | sed 's/[^0-9]*//g')
+        fi
+
+        if [ -n "$CURRENT_INI_TIMEOUT" ] && [ "$CURRENT_INI_TIMEOUT" -eq "$TIMEOUT_VALUE" ]; then
+            echo "PHP max_execution_time in $USER_INI_PATH is already set to $TIMEOUT_VALUE seconds. Skipping update."
+        elif grep -q "max_execution_time" "$USER_INI_PATH"; then
             sed -i "s/^max_execution_time =.*/max_execution_time = $TIMEOUT_VALUE/" "$USER_INI_PATH"
             echo "Updated max_execution_time in $USER_INI_PATH to $TIMEOUT_VALUE seconds."
         else
