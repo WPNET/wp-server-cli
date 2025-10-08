@@ -30,7 +30,6 @@ function get_confirmation() {
     return 0
 }
 
-
 # Argument parsing
 UNATTENDED=false
 ADD_CRON=false
@@ -122,7 +121,7 @@ else # Interactive mode
     fi
 fi
 
-# Set API key & URL from the (potentially updated) config file
+# Set API key & URL from the config file
 API_KEY=""
 API_URL=""
 while IFS='=' read -r key value; do
@@ -145,15 +144,13 @@ fi
 chmod 0600 "$CONFIG_FILE"
 chmod 0700 "$INSTALL_DIR"/wp-server.sh
 
-# Logic for fetching and setting SERVER_ID
-# This block will now run in both interactive and unattended modes, but only if SERVER_ID is not already set.
+#######################################################
+#### SET SERVER_ID
+#######################################################
 if ! grep -q "^SERVER_ID=." "$CONFIG_FILE"; then
     # Get ALL servers from API
     SERVERS_JSON=$(curl -s -X GET "$API_URL/servers?limit=100" -H "Accept: application/json" -H "Authorization: Bearer $API_KEY")
 
-    #######################################################
-    #### SET SERVER_ID
-    #######################################################
 
     # Find server ID based on hostname
     SERVER_ID=$(echo "$SERVERS_JSON" | jq -r ".data[] | select(.name == \"$HOSTNAME\") | .id")
@@ -169,7 +166,7 @@ if ! grep -q "^SERVER_ID=." "$CONFIG_FILE"; then
 fi
 
 #######################################################
-#### Get SELECTED_USER and HOME_PATH
+#### ATTENDED / UNATTENDED USER SETUP
 #######################################################
 if [ "$UNATTENDED" = true ]; then
     # Unattended setup for all site users
@@ -328,7 +325,6 @@ else
     printf '#!/bin/bash\n# WP Server - Server Management wrapper\n# This script will not work without appropriate permissions configured with sudo.\n# Contact WP NET support for help.\nsudo %s/wp-server.sh "$@"' "$INSTALL_DIR" > "$WRAPPER_SCRIPT"
     sudo chown "$SELECTED_USER":"$SELECTED_USER" "$WRAPPER_SCRIPT"
     chmod 0700 "$WRAPPER_SCRIPT"
-
 
     echo "The user '${SELECTED_USER}' can now login and run: $SCRIPT_NAME <service>"
 

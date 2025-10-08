@@ -10,7 +10,6 @@ else
     MYSQL_SERVER_INSTALLED=false
 fi
 
-
 CONFIG_FILE="/opt/wp-server/api.conf"
 
 if [[ ! -f "$CONFIG_FILE" ]]; then
