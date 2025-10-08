@@ -70,18 +70,50 @@ else # Interactive mode
       fi
     else
       echo "Configuration file found: $CONFIG_FILE"
+      # Parse API config file to check for missing values
+      API_URL_FROM_FILE=""
+      while IFS='=' read -r key value; do
+        case "$key" in
+          API_KEY)
+            API_KEY_FROM_FILE="$value"
+            ;;
+          API_URL)
+            API_URL_FROM_FILE="$value"
+            ;;
+        esac
+      done < "$CONFIG_FILE"
+
+      # Prompt for missing API_KEY
+      if [[ -z "$API_KEY_FROM_FILE" ]]; then
+          read -p "Enter API key: " API_KEY
+          if grep -q "^API_KEY=" "$CONFIG_FILE"; then
+              sed -i "s|^API_KEY=.*|API_KEY=$API_KEY|" "$CONFIG_FILE"
+          else
+              echo "API_KEY=$API_KEY" >> "$CONFIG_FILE"
+          fi
+          echo "API_KEY updated in $CONFIG_FILE."
+      fi
+
+      # Ensure API_URL is set (will use default if missing)
+      if [[ -z "$API_URL_FROM_FILE" ]]; then
+          echo "API_URL not found in $CONFIG_FILE. Setting to default: $DEFAULT_API_URL"
+          if grep -q "^API_URL=" "$CONFIG_FILE"; then
+              sed -i "s|^API_URL=.*|API_URL=$DEFAULT_API_URL|" "$CONFIG_FILE"
+          else
+              echo "API_URL=$DEFAULT_API_URL" >> "$CONFIG_FILE"
+          fi
+          echo "API_URL updated in $CONFIG_FILE."
+      fi
+
       if grep -q "^SERVER_ID=." "$CONFIG_FILE"; then
-          echo "Server ID found in config file. Skipping configuration edit."
-      else
-        # Prompt user to edit config file
-        if ( get_confirmation "Edit configuration file?" ); then
-          nano "$CONFIG_FILE"
-        fi
+          echo "Server ID found in config file. Skipping manual edit."
       fi
     fi
 fi
 
-# Set API key & URL
+# Set API key & URL from the (potentially updated) config file
+API_KEY=""
+API_URL=""
 while IFS='=' read -r key value; do
   case "$key" in
     API_KEY)
@@ -92,17 +124,6 @@ while IFS='=' read -r key value; do
       ;;
   esac
 done < "$CONFIG_FILE"
-
-# Ensure API_URL is set, even if missing from config file
-if [[ -z "$API_URL" ]]; then
-    echo "API_URL not found in $CONFIG_FILE. Setting to default: $DEFAULT_API_URL"
-    API_URL="$DEFAULT_API_URL"
-    if grep -q "^API_URL=" "$CONFIG_FILE"; then
-        sed -i "s|^API_URL=.*|API_URL=$API_URL|" "$CONFIG_FILE"
-    else
-        echo "API_URL=$API_URL" >> "$CONFIG_FILE"
-    fi
-fi
 
 if [[ -z "$API_KEY" ]]; then
   echo "ERROR: Configuration file is missing API_KEY"
@@ -244,6 +265,7 @@ else
     if [ ! -f "$SUDOERS_FILE" ]; then
         # Check if existing sudoers config is OK, before we mess with it
         echo "Checking sudo syntax with visudo ..."
+
         if visudo -c; then
             echo "Current sudoers syntax is correct."
         elif ( get_confirmation "CHMOD all files in $SUDOERS_PATH to 0440?" ); then
