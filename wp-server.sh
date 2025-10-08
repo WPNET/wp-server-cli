@@ -46,6 +46,7 @@ function print_usage() {
   echo -e "  ${GREEN}restart <service>${RESET}   Restart a service"
   echo -e "  ${GREEN}timeout [-s <seconds>]${RESET} Set PHP and Nginx timeouts for the current site. If -s is not provided, the value will be read from .user.ini or prompted."
   echo -e "  ${GREEN}cache status${RESET}        Show SpinupWP cache status (wp spinupwp status)"
+  echo -e "  ${GREEN}cache status${RESET}        Show SpinupWP cache status (wp spinupwp status)"
   echo ""
   echo -e "${CYAN}Services for 'restart':${RESET}"
   echo -e "  PHP:          ${GREEN}php${RESET} (restarts all runtime versions)"
@@ -53,6 +54,7 @@ function print_usage() {
   if $MYSQL_SERVER_INSTALLED; then
     echo -e "  Database:     ${GREEN}db${RESET} | ${GREEN}mysql${RESET}"
   fi
+  echo -e "  Cache:        ${GREEN}redis${RESET}"
   echo -e "  Cache:        ${GREEN}redis${RESET}"
 }
 
@@ -77,12 +79,16 @@ function restart_service() {
       redis)
         service_name="redis"
         ;;
+      redis)
+        service_name="redis"
+        ;;
       *)
         echo "Invalid service alias provided to restart_service function: $service_to_restart"
         return 1
         ;;
     esac
 
+    local restart_api_url="$API_URL/servers/$SERVER_ID/services/$service_name/restart"
     local restart_api_url="$API_URL/servers/$SERVER_ID/services/$service_name/restart"
 
     RESPONSE=$(curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" "$restart_api_url")
