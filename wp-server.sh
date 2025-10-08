@@ -1,6 +1,6 @@
 #!/bin/bash
 # WP Server - Service Management
-VERSION="1.4.9"
+VERSION="1.4.10"
 
 # Check if mysql-server package is installed
 dpkg -s mysql-server &> /dev/null
