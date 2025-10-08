@@ -102,9 +102,14 @@ function restart_service() {
     MESSAGE=$(echo "$RESPONSE" | jq -r '.message')
 
     if [[ "$EVENT_ID" =~ ^[0-9]+$ ]]; then
-      echo -e "Service ${YELLOW}${service_name}${RESET} restart initiated. Event ID: ${BLUE}${EVENT_ID}${RESET}"
+      MSG="Service ${YELLOW}${service_name}${RESET} restart initiated. Event ID: ${BLUE}${EVENT_ID}${RESET}"
+      # Remove 'Event ID: ...' from the end if present
+      MSG_CLEANED=$(echo -e "$MSG" | sed 's/ *Event ID:.*$//')
+      echo -e "$MSG_CLEANED"
     elif [ ! -z "$MESSAGE" ]; then
-      echo "$MESSAGE"
+      # Remove 'Event ID: ...' from the end if present in message
+      MSG_CLEANED=$(echo "$MESSAGE" | sed 's/ *Event ID:.*$//')
+      echo "$MSG_CLEANED"
     else
       echo "Error: Invalid or missing event_id in API response for service $service_name."
       echo "Response: $RESPONSE"
