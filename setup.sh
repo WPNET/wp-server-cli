@@ -38,24 +38,6 @@ fi
 #######################################################
 
 if [ "$UNATTENDED" = true ]; then
-
-if [ "$UNATTENDED" = true ]; then
-    if [[ ! -f "$CONFIG_FILE" ]]; then
-        echo "ERROR: Configuration file not found: $CONFIG_FILE"
-        exit 1
-    fi
-
-    if ! grep -q "^API_KEY=." "$CONFIG_FILE" || \
-       ! grep -q "^API_URL=." "$CONFIG_FILE" || \
-       ! grep -q "^SERVER_ID=." "$CONFIG_FILE"; then
-        echo "ERROR: In unattended mode, api.conf must exist and contain non-empty API_KEY, API_URL, and SERVER_ID."
-        exit 1
-    fi
-    echo "Configuration file is valid for unattended mode."
-else # Interactive mode
-    if [[ ! -f "$CONFIG_FILE" ]]; then
-      echo "ERROR: Configuration file not found: $CONFIG_FILE"
-if [ "$UNATTENDED" = true ]; then
     if [[ ! -f "$CONFIG_FILE" ]]; then
         echo "ERROR: Configuration file not found: $CONFIG_FILE"
         exit 1
@@ -72,34 +54,6 @@ else # Interactive mode
     if [[ ! -f "$CONFIG_FILE" ]]; then
       echo "ERROR: Configuration file not found: $CONFIG_FILE"
 
-      # Prompt user to create config file
-      if ( get_confirmation "Create a new configuration file?" ); then
-        echo "Creating new configuration file: $CONFIG_FILE"
-        # prompt for API_KEY
-        read -p "Enter API key: " API_KEY
-        # prompt for API_URL
-        DEFAULT_API_URL="https://api.spinupwp.app/v1/servers"
-        read -p "Enter API URL [$DEFAULT_API_URL]: " API_URL
-        API_URL=${API_URL:-$DEFAULT_API_URL}
-        # Write to config file
-        echo "API_KEY=$API_KEY" > "$CONFIG_FILE"
-        echo "API_URL=$API_URL" >> "$CONFIG_FILE"
-        echo "'$CONFIG_FILE' file created."
-      else
-        echo "Cancelled"
-        exit 1
-      fi
-    else
-      echo "Configuration file found: $CONFIG_FILE"
-      if grep -q "^SERVER_ID=." "$CONFIG_FILE"; then
-          echo "Server ID found in config file. Skipping configuration edit."
-      else
-        # Prompt user to edit config file
-        if ( get_confirmation "Edit configuration file?" ); then
-          nano "$CONFIG_FILE"
-        fi
-      fi
-    fi
       # Prompt user to create config file
       if ( get_confirmation "Create a new configuration file?" ); then
         echo "Creating new configuration file: $CONFIG_FILE"
