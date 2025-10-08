@@ -1,6 +1,6 @@
 #!/bin/bash
 # WP Server - Service Management
-VERSION="1.4.8"
+VERSION="1.4.9"
 
 # Check if mysql-server package is installed
 dpkg -s mysql-server &> /dev/null
@@ -9,6 +9,7 @@ if [ $? -eq 0 ]; then
 else
     MYSQL_SERVER_INSTALLED=false
 fi
+
 
 CONFIG_FILE="/opt/wp-server/api.conf"
 
@@ -32,6 +33,15 @@ while IFS='=' read -r key value; do
   esac
 done < "$CONFIG_FILE"
 
+# Determine the current user and home path (if running under sudo)
+if [ -n "$SUDO_USER" ]; then
+  CURRENT_USER="$SUDO_USER"
+  USER_HOME_PATH=$(getent passwd "$CURRENT_USER" | cut -d: -f6)
+else
+  CURRENT_USER=""
+  USER_HOME_PATH=""
+fi
+
 # Color codes
 RESET='\e[0m'
 CYAN='\e[36m'
@@ -46,6 +56,8 @@ function print_usage() {
   echo -e "  ${GREEN}restart <service>${RESET}      Restart a service"
   echo -e "  ${GREEN}timeout [-s <seconds>]${RESET} Set PHP and Nginx timeouts for the current site. If -s is not provided, the value will be read from .user.ini or prompted."
   echo -e "  ${GREEN}cache status${RESET}           Show cache status"
+  echo -e "  ${GREEN}cache purge-page${RESET}       Purge Nginx page cache"
+  echo -e "  ${GREEN}cache purge-object${RESET}     Purge object cache (equivalent to wp cache flush)"
   echo ""
   echo -e "${CYAN}Services for 'restart':${RESET}"
   echo -e "  Cache:        ${GREEN}redis${RESET}"
@@ -110,132 +122,135 @@ if [ -z "$COMMAND" ]; then
   exit 1
 fi
 
+
 case "$COMMAND" in
   -v|--version)
-    echo "wp-server version $VERSION"
-    exit 0
-    ;;
+  echo "wp-server version $VERSION"
+  exit 0
+  ;;
   restart)
-    if [ -z "$ARGUMENT" ]; then
-        echo "Error: restart command requires a service alias."
-        print_usage
-        exit 1
-    fi
-    restart_service "$ARGUMENT"
-    ;;
+  if [ -z "$ARGUMENT" ]; then
+    echo "Error: restart command requires a service alias."
+    print_usage
+    exit 1
+  fi
+  restart_service "$ARGUMENT"
+  ;;
   cache)
-    if [ "$ARGUMENT" == "status" ]; then
-        CURRENT_USER="$SUDO_USER"
-        if [ -z "$CURRENT_USER" ]; then
-            echo "Error: Could not determine the user who ran this command. This script must be run with sudo by a non-root user."
-            exit 1
-        fi
-        USER_HOME_PATH=$(getent passwd "$CURRENT_USER" | cut -d: -f6)
-        # echo "User home path: $USER_HOME_PATH"
-        # Execute wp spinupwp status directly as the current user
-        # TODO: Fix path to avoid hardcoding /files. need to get the site path dynamically from spinupwp api?
-        sudo -u "$CURRENT_USER" wp spinupwp status --path="$USER_HOME_PATH/files"
-    else
-        echo "Invalid cache command: $ARGUMENT"
-        print_usage
-        exit 1
-    fi
+  if [ -z "$CURRENT_USER" ] || [ -z "$USER_HOME_PATH" ]; then
+    echo "Error: Could not determine the user who ran this command. This script must be run with sudo by a non-root user."
+    exit 1
+  fi
+  case "$ARGUMENT" in
+    status)
+    sudo -u "$CURRENT_USER" wp spinupwp status --path="$USER_HOME_PATH/files"
     ;;
-  timeout)
-    SET_TIMEOUT_VALUE=""
-    # Parse optional -s or --set flag
-    if [ "$ARGUMENT" == "-s" ] || [ "$ARGUMENT" == "--set" ]; then
-        SET_TIMEOUT_VALUE="$3"
-        if ! [[ "$SET_TIMEOUT_VALUE" =~ ^[0-9]+$ ]]; then
-            echo "Error: Invalid timeout value provided with -s/--set. Please provide a number."
-            exit 1
-        fi
-    fi
-
-    CURRENT_USER="$SUDO_USER"
-    if [ -z "$CURRENT_USER" ]; then
-        echo "Error: Could not determine the user who ran this command. This script must be run with sudo by a non-root user."
-        exit 1
-    fi
-
-    USER_HOME_PATH=$(getent passwd "$CURRENT_USER" | cut -d: -f6)
-    SITE_NAME=$(basename "$USER_HOME_PATH")
-
-    # TODO: Fix path to avoid hardcoding /files. need to get the site path dynamically from spinupwp api?
-    USER_INI_PATH="$USER_HOME_PATH/files/.user.ini"
-    TIMEOUT_VALUE=""
-
-    if [ -n "$SET_TIMEOUT_VALUE" ]; then
-        TIMEOUT_VALUE="$SET_TIMEOUT_VALUE"
-        echo "Using provided timeout value: $TIMEOUT_VALUE seconds."
-    else
-        # Try to read existing timeout value
-        if [ -f "$USER_INI_PATH" ]; then
-            TIMEOUT_VALUE=$(grep "max_execution_time" "$USER_INI_PATH" | cut -d'=' -f2 | tr -d ' ' | sed 's/[^0-9]*//g')
-            if [ -n "$TIMEOUT_VALUE" ]; then
-                echo "Found existing PHP timeout of $TIMEOUT_VALUE seconds in .user.ini"
-            else
-                echo "No valid 'max_execution_time' found in existing .user.ini."
-            fi
-        fi
-
-        # If TIMEOUT_VALUE is still empty, prompt the user
-        if [ -z "$TIMEOUT_VALUE" ]; then
-            read -p "Enter desired PHP and Nginx timeout value in seconds: " USER_INPUT_TIMEOUT
-            # Validate input
-            if ! [[ "$USER_INPUT_TIMEOUT" =~ ^[0-9]+$ ]]; then
-                echo "Error: Invalid input. Please provide a number."
-                exit 1
-            fi
-            TIMEOUT_VALUE="$USER_INPUT_TIMEOUT"
-        fi
-    fi
-
-    # Create/update .user.ini if TIMEOUT_VALUE was set or changed
-    if [ -n "$TIMEOUT_VALUE" ]; then
-        mkdir -p "$(dirname "$USER_INI_PATH")"
-        CURRENT_INI_TIMEOUT=""
-        if [ -f "$USER_INI_PATH" ]; then
-            CURRENT_INI_TIMEOUT=$(grep "max_execution_time" "$USER_INI_PATH" | cut -d'=' -f2 | tr -d ' ' | sed 's/[^0-9]*//g')
-        fi
-
-        if [ -n "$CURRENT_INI_TIMEOUT" ] && [ "$CURRENT_INI_TIMEOUT" -eq "$TIMEOUT_VALUE" ]; then
-            echo "PHP max_execution_time is already $TIMEOUT_VALUE seconds. Skipping update."
-        elif grep -q "max_execution_time" "$USER_INI_PATH"; then
-            sed -i "s/^max_execution_time =.*/max_execution_time = $TIMEOUT_VALUE/" "$USER_INI_PATH"
-            echo "Updated max_execution_time in .user.ini to $TIMEOUT_VALUE seconds."
-        else
-            echo "max_execution_time = $TIMEOUT_VALUE" >> "$USER_INI_PATH"
-            echo "Added max_execution_time to .user.ini with value $TIMEOUT_VALUE seconds."
-        fi
-        chown "$CURRENT_USER":"$CURRENT_USER" "$USER_INI_PATH"
-    fi
-
-    # TIMEOUT_VALUE is guaranteed to be set. Proceed with Nginx config.
-    NGINX_CONF_PATH="/etc/nginx/sites-available/$SITE_NAME/location/fastcgi-timeout.conf"
-    NGINX_CURRENT_TIMEOUT=""
-
-    if [ -f "$NGINX_CONF_PATH" ]; then
-        NGINX_CURRENT_TIMEOUT=$(grep "fastcgi_read_timeout" "$NGINX_CONF_PATH" | cut -d' ' -f2 | sed 's/s;//g' | sed 's/[^0-9]*//g')
-    fi
-
-    if [ -n "$NGINX_CURRENT_TIMEOUT" ] && [ "$NGINX_CURRENT_TIMEOUT" -eq "$TIMEOUT_VALUE" ]; then
-        echo "Nginx fast-cgi timeout is already $TIMEOUT_VALUE seconds. Skipping update."
-    else
-        mkdir -p "$(dirname "$NGINX_CONF_PATH")"
-        
-        CONF_CONTENT="# Customise fastcgi timeout\\nfastcgi_read_timeout ${TIMEOUT_VALUE}s;"
-        echo -e "$CONF_CONTENT" > "$NGINX_CONF_PATH"
-        echo "Updated Nginx fast-cgi timeout to $TIMEOUT_VALUE seconds."
-
-        echo "Restarting services ..."
-        restart_service "php"
-        restart_service "nginx"
-    fi
+    purge-page)
+    sudo -u "$CURRENT_USER" wp spinupwp cache purge-site --path="$USER_HOME_PATH/files"
     ;;
-  *)
-    echo "Invalid command: $COMMAND"
+    purge-object)
+    sudo -u "$CURRENT_USER" wp cache flush --path="$USER_HOME_PATH/files"
+    ;;
+    *)
+    echo "Invalid cache command: $ARGUMENT"
     print_usage
     exit 1
     ;;
+  esac
+  ;;
+  timeout)
+  SET_TIMEOUT_VALUE=""
+  # Parse optional -s or --set flag
+  if [ "$ARGUMENT" == "-s" ] || [ "$ARGUMENT" == "--set" ]; then
+    SET_TIMEOUT_VALUE="$3"
+    if ! [[ "$SET_TIMEOUT_VALUE" =~ ^[0-9]+$ ]]; then
+      echo "Error: Invalid timeout value provided with -s/--set. Please provide a number."
+      exit 1
+    fi
+  fi
+
+  if [ -z "$CURRENT_USER" ] || [ -z "$USER_HOME_PATH" ]; then
+    echo "Error: Could not determine the user who ran this command. This script must be run with sudo by a non-root user."
+    exit 1
+  fi
+
+  SITE_NAME=$(basename "$USER_HOME_PATH")
+
+  # TODO: Fix path to avoid hardcoding /files. need to get the site path dynamically from spinupwp api?
+  USER_INI_PATH="$USER_HOME_PATH/files/.user.ini"
+  TIMEOUT_VALUE=""
+
+  if [ -n "$SET_TIMEOUT_VALUE" ]; then
+    TIMEOUT_VALUE="$SET_TIMEOUT_VALUE"
+    echo "Using provided timeout value: $TIMEOUT_VALUE seconds."
+  else
+    # Try to read existing timeout value
+    if [ -f "$USER_INI_PATH" ]; then
+      TIMEOUT_VALUE=$(grep "max_execution_time" "$USER_INI_PATH" | cut -d'=' -f2 | tr -d ' ' | sed 's/[^0-9]*//g')
+      if [ -n "$TIMEOUT_VALUE" ]; then
+        echo "Found existing PHP timeout of $TIMEOUT_VALUE seconds in .user.ini"
+      else
+        echo "No valid 'max_execution_time' found in existing .user.ini."
+      fi
+    fi
+
+    # If TIMEOUT_VALUE is still empty, prompt the user
+    if [ -z "$TIMEOUT_VALUE" ]; then
+      read -p "Enter desired PHP and Nginx timeout value in seconds: " USER_INPUT_TIMEOUT
+      # Validate input
+      if ! [[ "$USER_INPUT_TIMEOUT" =~ ^[0-9]+$ ]]; then
+        echo "Error: Invalid input. Please provide a number."
+        exit 1
+      fi
+      TIMEOUT_VALUE="$USER_INPUT_TIMEOUT"
+    fi
+  fi
+
+  # Create/update .user.ini if TIMEOUT_VALUE was set or changed
+  if [ -n "$TIMEOUT_VALUE" ]; then
+    mkdir -p "$(dirname "$USER_INI_PATH")"
+    CURRENT_INI_TIMEOUT=""
+    if [ -f "$USER_INI_PATH" ]; then
+      CURRENT_INI_TIMEOUT=$(grep "max_execution_time" "$USER_INI_PATH" | cut -d'=' -f2 | tr -d ' ' | sed 's/[^0-9]*//g')
+    fi
+
+    if [ -n "$CURRENT_INI_TIMEOUT" ] && [ "$CURRENT_INI_TIMEOUT" -eq "$TIMEOUT_VALUE" ]; then
+      echo "PHP max_execution_time is already $TIMEOUT_VALUE seconds. Skipping update."
+    elif grep -q "max_execution_time" "$USER_INI_PATH"; then
+      sed -i "s/^max_execution_time =.*/max_execution_time = $TIMEOUT_VALUE/" "$USER_INI_PATH"
+      echo "Updated max_execution_time in .user.ini to $TIMEOUT_VALUE seconds."
+    else
+      echo "max_execution_time = $TIMEOUT_VALUE" >> "$USER_INI_PATH"
+      echo "Added max_execution_time to .user.ini with value $TIMEOUT_VALUE seconds."
+    fi
+    chown "$CURRENT_USER":"$CURRENT_USER" "$USER_INI_PATH"
+  fi
+
+  # TIMEOUT_VALUE is guaranteed to be set. Proceed with Nginx config.
+  NGINX_CONF_PATH="/etc/nginx/sites-available/$SITE_NAME/location/fastcgi-timeout.conf"
+  NGINX_CURRENT_TIMEOUT=""
+
+  if [ -f "$NGINX_CONF_PATH" ]; then
+    NGINX_CURRENT_TIMEOUT=$(grep "fastcgi_read_timeout" "$NGINX_CONF_PATH" | cut -d' ' -f2 | sed 's/s;//g' | sed 's/[^0-9]*//g')
+  fi
+
+  if [ -n "$NGINX_CURRENT_TIMEOUT" ] && [ "$NGINX_CURRENT_TIMEOUT" -eq "$TIMEOUT_VALUE" ]; then
+    echo "Nginx fast-cgi timeout is already $TIMEOUT_VALUE seconds. Skipping update."
+  else
+    mkdir -p "$(dirname "$NGINX_CONF_PATH")"
+        
+    CONF_CONTENT="# Customise fastcgi timeout\nfastcgi_read_timeout ${TIMEOUT_VALUE}s;"
+    echo -e "$CONF_CONTENT" > "$NGINX_CONF_PATH"
+    echo "Updated Nginx fast-cgi timeout to $TIMEOUT_VALUE seconds."
+
+    echo "Restarting services ..."
+    restart_service "php"
+    restart_service "nginx"
+  fi
+  ;;
+  *)
+  echo "Invalid command: $COMMAND"
+  print_usage
+  exit 1
+  ;;
 esac

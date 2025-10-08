@@ -1,7 +1,7 @@
 #!/bin/bash
 # WP Server - Server Management - Setup
 # This script will configure the sudoers file and create a wrapper script for a user to run the 'wp-server' command.
-VERSION="1.4.8"
+VERSION="1.4.9"
 
 # script name
 SCRIPT_NAME="wp-server"
