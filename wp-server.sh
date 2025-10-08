@@ -149,9 +149,9 @@ case "$COMMAND" in
         if [ -f "$USER_INI_PATH" ]; then
             TIMEOUT_VALUE=$(grep "max_execution_time" "$USER_INI_PATH" | cut -d'=' -f2 | tr -d ' ' | sed 's/[^0-9]*//g')
             if [ -n "$TIMEOUT_VALUE" ]; then
-                echo "Found existing PHP timeout of $TIMEOUT_VALUE seconds in $USER_INI_PATH"
+                echo "Found existing PHP timeout of $TIMEOUT_VALUE seconds in .user.ini"
             else
-                echo "No valid 'max_execution_time' found in existing $USER_INI_PATH."
+                echo "No valid 'max_execution_time' found in existing .user.ini."
             fi
         fi
 
@@ -176,13 +176,13 @@ case "$COMMAND" in
         fi
 
         if [ -n "$CURRENT_INI_TIMEOUT" ] && [ "$CURRENT_INI_TIMEOUT" -eq "$TIMEOUT_VALUE" ]; then
-            echo "PHP max_execution_time in $USER_INI_PATH is already set to $TIMEOUT_VALUE seconds. Skipping update."
+            echo "PHP max_execution_time in .user.ini is already set to $TIMEOUT_VALUE seconds. Skipping update."
         elif grep -q "max_execution_time" "$USER_INI_PATH"; then
             sed -i "s/^max_execution_time =.*/max_execution_time = $TIMEOUT_VALUE/" "$USER_INI_PATH"
-            echo "Updated max_execution_time in $USER_INI_PATH to $TIMEOUT_VALUE seconds."
+            echo "Updated max_execution_time in .user.ini to $TIMEOUT_VALUE seconds."
         else
             echo "max_execution_time = $TIMEOUT_VALUE" >> "$USER_INI_PATH"
-            echo "Added max_execution_time to $USER_INI_PATH with value $TIMEOUT_VALUE seconds."
+            echo "Added max_execution_time to .user.ini with value $TIMEOUT_VALUE seconds."
         fi
         chown "$CURRENT_USER":"$CURRENT_USER" "$USER_INI_PATH"
     fi
@@ -196,13 +196,13 @@ case "$COMMAND" in
     fi
 
     if [ -n "$NGINX_CURRENT_TIMEOUT" ] && [ "$NGINX_CURRENT_TIMEOUT" -eq "$TIMEOUT_VALUE" ]; then
-        echo "Nginx timeout in $NGINX_CONF_PATH is already set to $TIMEOUT_VALUE seconds. Skipping update."
+        echo "Nginx timeout in fastcgi-timeout.conf is already set to $TIMEOUT_VALUE seconds. Skipping update."
     else
         mkdir -p "$(dirname "$NGINX_CONF_PATH")"
         
         CONF_CONTENT="# Customise fastcgi timeout\\nfastcgi_read_timeout ${TIMEOUT_VALUE}s;"
         echo -e "$CONF_CONTENT" > "$NGINX_CONF_PATH"
-        echo "Updated Nginx timeout in $NGINX_CONF_PATH to $TIMEOUT_VALUE seconds."
+        echo "Updated Nginx timeout in fastcgi-timeout.conf to $TIMEOUT_VALUE seconds."
 
         echo "Restarting services to apply changes..."
         restart_service "php"
