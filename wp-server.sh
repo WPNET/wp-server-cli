@@ -131,28 +131,45 @@ case "$COMMAND" in
     USER_INI_PATH="/sites/$SITE_NAME/files/.user.ini"
     TIMEOUT_VALUE=""
 
+    # Try to read existing timeout value
     if [ -f "$USER_INI_PATH" ]; then
         TIMEOUT_VALUE=$(grep "max_execution_time" "$USER_INI_PATH" | cut -d'=' -f2 | tr -d ' ' | sed 's/[^0-9]*//g')
-        echo "Found existing timeout of $TIMEOUT_VALUE seconds in $USER_INI_PATH"
-    else
-        read -p "Enter timeout value in seconds: " TIMEOUT_VALUE
+        if [ -n "$TIMEOUT_VALUE" ]; then
+            echo "Found existing PHP timeout of $TIMEOUT_VALUE seconds in $USER_INI_PATH"
+        else
+            echo "No valid 'max_execution_time' found in existing $USER_INI_PATH."
+        fi
+    fi
+
+    # If TIMEOUT_VALUE is still empty, prompt the user
+    if [ -z "$TIMEOUT_VALUE" ]; then
+        read -p "Enter desired PHP and Nginx timeout value in seconds: " USER_INPUT_TIMEOUT
         # Validate input
-        if ! [[ "$TIMEOUT_VALUE" =~ ^[0-9]+$ ]]; then
+        if ! [[ "$USER_INPUT_TIMEOUT" =~ ^[0-9]+$ ]]; then
             echo "Error: Invalid input. Please provide a number."
             exit 1
         fi
+        TIMEOUT_VALUE="$USER_INPUT_TIMEOUT"
+
+        # Create/update .user.ini
         mkdir -p "$(dirname "$USER_INI_PATH")"
-        echo "max_execution_time = $TIMEOUT_VALUE" > "$USER_INI_PATH"
+        if grep -q "max_execution_time" "$USER_INI_PATH"; then
+            sed -i "s/^max_execution_time =.*/max_execution_time = $TIMEOUT_VALUE/" "$USER_INI_PATH"
+            echo "Updated max_execution_time in $USER_INI_PATH to $TIMEOUT_VALUE seconds."
+        else
+            echo "max_execution_time = $TIMEOUT_VALUE" >> "$USER_INI_PATH"
+            echo "Added max_execution_time to $USER_INI_PATH with value $TIMEOUT_VALUE seconds."
+        fi
         chown "$CURRENT_USER":"$CURRENT_USER" "$USER_INI_PATH"
-        echo "Created $USER_INI_PATH with timeout of $TIMEOUT_VALUE seconds."
     fi
 
+    # Now, TIMEOUT_VALUE is guaranteed to be set. Proceed with Nginx config.
     NGINX_CONF_PATH="/etc/nginx/sites-available/$SITE_NAME/location/fastcgi-timeout.conf"
     mkdir -p "$(dirname "$NGINX_CONF_PATH")"
     
-    CONF_CONTENT="# Customise fastcgi timeout\nfastcgi_read_timeout ${TIMEOUT_VALUE}s;"
+    CONF_CONTENT="# Customise fastcgi timeout\\nfastcgi_read_timeout ${TIMEOUT_VALUE}s;"
     echo -e "$CONF_CONTENT" > "$NGINX_CONF_PATH"
-    echo "Updated Nginx timeout in $NGINX_CONF_PATH"
+    echo "Updated Nginx timeout in $NGINX_CONF_PATH to $TIMEOUT_VALUE seconds."
 
     echo "Restarting services to apply changes..."
     restart_service "php"
