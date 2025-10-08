@@ -45,6 +45,7 @@ function print_usage() {
   echo -e "${CYAN}Commands:${RESET}"
   echo -e "  ${GREEN}restart <service>${RESET}   Restart a service"
   echo -e "  ${GREEN}timeout [-s <seconds>]${RESET} Set PHP and Nginx timeouts for the current site. If -s is not provided, the value will be read from .user.ini or prompted."
+  echo -e "  ${GREEN}cache status${RESET}        Show SpinupWP cache status (wp spinupwp status)"
   echo ""
   echo -e "${CYAN}Services for 'restart':${RESET}"
   echo -e "  PHP:          ${GREEN}php${RESET} (restarts all runtime versions)"
@@ -52,6 +53,7 @@ function print_usage() {
   if $MYSQL_SERVER_INSTALLED; then
     echo -e "  Database:     ${GREEN}db${RESET} | ${GREEN}mysql${RESET}"
   fi
+  echo -e "  Cache:        ${GREEN}redis${RESET}"
 }
 
 function restart_service() {
@@ -72,13 +74,16 @@ function restart_service() {
             return 0
         fi
         ;;
+      redis)
+        service_name="redis"
+        ;;
       *)
         echo "Invalid service alias provided to restart_service function: $service_to_restart"
         return 1
         ;;
     esac
 
-    local restart_api_url="$API_URL/$SERVER_ID/services/$service_name/restart"
+    local restart_api_url="$API_URL/servers/$SERVER_ID/services/$service_name/restart"
 
     RESPONSE=$(curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" "$restart_api_url")
 
@@ -117,6 +122,24 @@ case "$COMMAND" in
         exit 1
     fi
     restart_service "$ARGUMENT"
+    ;;
+  cache)
+    if [ "$ARGUMENT" == "status" ]; then
+        CURRENT_USER="$SUDO_USER"
+        if [ -z "$CURRENT_USER" ]; then
+            echo "Error: Could not determine the user who ran this command. This script must be run with sudo by a non-root user."
+            exit 1
+        fi
+        USER_HOME_PATH=$(getent passwd "$CURRENT_USER" | cut -d: -f6)
+        SITE_NAME=$(basename "$USER_HOME_PATH")
+
+        # Execute wp spinupwp status directly as the current user
+        wp spinupwp status --path="/sites/$SITE_NAME"
+    else
+        echo "Invalid cache command: $ARGUMENT"
+        print_usage
+        exit 1
+    fi
     ;;
   timeout)
     SET_TIMEOUT_VALUE=""

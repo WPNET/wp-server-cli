@@ -13,7 +13,7 @@ CONFIG_FILE="$INSTALL_DIR/api.conf"
 # Get hostname
 HOSTNAME=$(hostname -f)
 
-DEFAULT_API_URL="https://api.spinupwp.app/v1/servers"
+DEFAULT_API_URL="https://api.spinupwp.app/v1/"
 
 # confirmation helper
 function get_confirmation() {
@@ -138,7 +138,7 @@ chmod 0700 "$INSTALL_DIR"/wp-server.sh
 # This block will now run in both interactive and unattended modes, but only if SERVER_ID is not already set.
 if ! grep -q "^SERVER_ID=." "$CONFIG_FILE"; then
     # Get ALL servers from API
-    SERVERS_JSON=$(curl -s -X GET "$API_URL/?limit=100" -H "Accept: application/json" -H "Authorization: Bearer $API_KEY")
+    SERVERS_JSON=$(curl -s -X GET "$API_URL/servers?limit=100" -H "Accept: application/json" -H "Authorization: Bearer $API_KEY")
 
     #######################################################
     #### SET SERVER_ID
