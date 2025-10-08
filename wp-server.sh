@@ -1,6 +1,6 @@
 #!/bin/bash
 # WP Server - Service Management
-VERSION="1.3.1"
+VERSION="1.3.2"
 
 # Check if mysql-server package is installed
 dpkg -s mysql-server &> /dev/null
@@ -67,17 +67,16 @@ function restart_service() {
         ;;
       mysql|db)
         service_name="mysql"
+        if [[ ! $MYSQL_SERVER_INSTALLED ]]; then
+            echo -e "${YELLOW}Warning:${RESET} MySQL server is not installed. Skipping MySQL service restart."
+            return 0
+        fi
         ;;
       *)
         echo "Invalid service alias provided to restart_service function: $service_to_restart"
         return 1
         ;;
     esac
-
-    if [[ ! $MYSQL_SERVER_INSTALLED ]] && [[ $service_name == "mysql" ]]; then
-      echo -e "${YELLOW}Warning:${RESET} MySQL server is not installed. Skipping MySQL service restart."
-      return 0
-    fi
 
     local restart_api_url="$API_URL/$SERVER_ID/services/$service_name/restart"
 
