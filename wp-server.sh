@@ -1,6 +1,6 @@
 #!/bin/bash
 # WP Server - Service Management
-VERSION="1.4.7"
+VERSION="1.4.8"
 
 # Check if mysql-server package is installed
 dpkg -s mysql-server &> /dev/null
@@ -43,17 +43,17 @@ function print_usage() {
   echo -e "${CYAN}Usage:${RESET}    wp-server ${GREEN}<command>${RESET}"
   echo ""
   echo -e "${CYAN}Commands:${RESET}"
-  echo -e "  ${GREEN}restart <service>${RESET}   Restart a service"
+  echo -e "  ${GREEN}restart <service>${RESET}      Restart a service"
   echo -e "  ${GREEN}timeout [-s <seconds>]${RESET} Set PHP and Nginx timeouts for the current site. If -s is not provided, the value will be read from .user.ini or prompted."
-  echo -e "  ${GREEN}cache status${RESET}        Show SpinupWP cache status (wp spinupwp status)"
+  echo -e "  ${GREEN}cache status${RESET}           Show cache status"
   echo ""
   echo -e "${CYAN}Services for 'restart':${RESET}"
-  echo -e "  PHP:          ${GREEN}php${RESET} (restarts all runtime versions)"
-  echo -e "  Web server:   ${GREEN}web${RESET} | ${GREEN}nginx${RESET}"
+  echo -e "  Cache:        ${GREEN}redis${RESET}"
   if $MYSQL_SERVER_INSTALLED; then
     echo -e "  Database:     ${GREEN}db${RESET} | ${GREEN}mysql${RESET}"
   fi
-  echo -e "  Cache:        ${GREEN}redis${RESET}"
+  echo -e "  PHP:          ${GREEN}php${RESET} (restarts all runtime versions)"
+  echo -e "  Web server:   ${GREEN}web${RESET} | ${GREEN}nginx${RESET}"
 }
 
 function restart_service() {
@@ -200,7 +200,7 @@ case "$COMMAND" in
         fi
 
         if [ -n "$CURRENT_INI_TIMEOUT" ] && [ "$CURRENT_INI_TIMEOUT" -eq "$TIMEOUT_VALUE" ]; then
-            echo "PHP max_execution_time in .user.ini is already set to $TIMEOUT_VALUE seconds. Skipping update."
+            echo "PHP max_execution_time is already $TIMEOUT_VALUE seconds. Skipping update."
         elif grep -q "max_execution_time" "$USER_INI_PATH"; then
             sed -i "s/^max_execution_time =.*/max_execution_time = $TIMEOUT_VALUE/" "$USER_INI_PATH"
             echo "Updated max_execution_time in .user.ini to $TIMEOUT_VALUE seconds."
@@ -211,7 +211,7 @@ case "$COMMAND" in
         chown "$CURRENT_USER":"$CURRENT_USER" "$USER_INI_PATH"
     fi
 
-    # Now, TIMEOUT_VALUE is guaranteed to be set. Proceed with Nginx config.
+    # TIMEOUT_VALUE is guaranteed to be set. Proceed with Nginx config.
     NGINX_CONF_PATH="/etc/nginx/sites-available/$SITE_NAME/location/fastcgi-timeout.conf"
     NGINX_CURRENT_TIMEOUT=""
 
@@ -220,15 +220,15 @@ case "$COMMAND" in
     fi
 
     if [ -n "$NGINX_CURRENT_TIMEOUT" ] && [ "$NGINX_CURRENT_TIMEOUT" -eq "$TIMEOUT_VALUE" ]; then
-        echo "Nginx timeout in fastcgi-timeout.conf is already set to $TIMEOUT_VALUE seconds. Skipping update."
+        echo "Nginx fast-cgi timeout is already $TIMEOUT_VALUE seconds. Skipping update."
     else
         mkdir -p "$(dirname "$NGINX_CONF_PATH")"
         
         CONF_CONTENT="# Customise fastcgi timeout\\nfastcgi_read_timeout ${TIMEOUT_VALUE}s;"
         echo -e "$CONF_CONTENT" > "$NGINX_CONF_PATH"
-        echo "Updated Nginx timeout in fastcgi-timeout.conf to $TIMEOUT_VALUE seconds."
+        echo "Updated Nginx fast-cgi timeout to $TIMEOUT_VALUE seconds."
 
-        echo "Restarting services to apply changes..."
+        echo "Restarting services ..."
         restart_service "php"
         restart_service "nginx"
     fi

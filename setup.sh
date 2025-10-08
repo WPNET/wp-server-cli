@@ -1,7 +1,7 @@
 #!/bin/bash
 # WP Server - Server Management - Setup
 # This script will configure the sudoers file and create a wrapper script for a user to run the 'wp-server' command.
-VERSION="1.4.7"
+VERSION="1.4.8"
 
 # script name
 SCRIPT_NAME="wp-server"
@@ -13,7 +13,7 @@ CONFIG_FILE="$INSTALL_DIR/api.conf"
 # Get hostname
 HOSTNAME=$(hostname -f)
 
-DEFAULT_API_URL="https://api.spinupwp.app/v1/"
+DEFAULT_API_URL="https://api.spinupwp.app/v1"
 
 # confirmation helper
 function get_confirmation() {
