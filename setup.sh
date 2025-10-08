@@ -2,12 +2,10 @@
 # WP Server - Server Management - Setup
 # This script will configure the sudoers file and create a wrapper script for a user to run the 'wp-server' command.
 # Version: 1.3.2
-# Version: 1.3.2
 
 # script name
 SCRIPT_NAME="wp-server"
 # install directories
-INSTALL_DIR="$(dirname "$(readlink -f "$0")")"
 INSTALL_DIR="$(dirname "$(readlink -f "$0")")"
 LOCAL_INSTALL_DIR=".local/bin"
 # Configuration file
@@ -38,6 +36,8 @@ fi
 #######################################################
 #### Check api.conf
 #######################################################
+
+if [ "$UNATTENDED" = true ]; then
 
 if [ "$UNATTENDED" = true ]; then
     if [[ ! -f "$CONFIG_FILE" ]]; then
