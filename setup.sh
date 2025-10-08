@@ -2,7 +2,7 @@
 # WP Server - Server Management - Setup
 # This script will configure the sudoers file and create a wrapper script for a user to run the 'wp-server' command.
 
-VERSION="1.4.10"
+VERSION="1.5.0"
 
 # script name
 SCRIPT_NAME="wp-server"
@@ -142,7 +142,7 @@ fi
 
 # Set permissions
 chmod 0600 "$CONFIG_FILE"
-chmod 0700 "$INSTALL_DIR"/wp-server.sh
+chmod 0700 "$INSTALL_DIR"/$SCRIPT_NAME.sh
 
 #######################################################
 #### SET SERVER_ID
@@ -188,7 +188,7 @@ if [ "$UNATTENDED" = true ]; then
 
         if [ ! -f "$SUDOERS_FILE" ]; then
             echo "Creating sudoers file: $SUDOERS_FILE"
-            SUDO_RULES="${SELECTED_USER} ALL=(root) NOPASSWD: $INSTALL_DIR/wp-server.sh"
+            SUDO_RULES="${SELECTED_USER} ALL=(root) NOPASSWD: $INSTALL_DIR/$SCRIPT_NAME.sh"
             echo -e "$SUDO_RULES" > "$SUDOERS_FILE"
             chmod 0440 "$SUDOERS_FILE"
 
@@ -210,7 +210,7 @@ if [ "$UNATTENDED" = true ]; then
         fi
 
         if [ ! -f "$WRAPPER_SCRIPT" ]; then
-            printf '#!/bin/bash\n# WP Server - Server Management wrapper\n# This script will not work without appropriate permissions configured with sudo.\n# Contact WP NET support for help.\nsudo %s/wp-server.sh "$@"' "$INSTALL_DIR" > "$WRAPPER_SCRIPT"
+            printf '#!/bin/bash\n# WP Server - Server Management wrapper\n# This script will not work without appropriate permissions configured with sudo.\n# Contact WP NET support for help.\nsudo %s/%s.sh "$@"' "$INSTALL_DIR" "$SCRIPT_NAME" > "$WRAPPER_SCRIPT"
             chown "$SELECTED_USER":"$SELECTED_USER" "$WRAPPER_SCRIPT"
             chmod 0700 "$WRAPPER_SCRIPT"
             echo "Wrapper script created for '${SELECTED_USER}'."
@@ -280,7 +280,7 @@ else
             chmod 0440 $SUDOERS_PATH/*
         fi
         # Define the sudo rules
-        SUDO_RULES="${SELECTED_USER} ALL=(root) NOPASSWD: $INSTALL_DIR/wp-server.sh"
+        SUDO_RULES="${SELECTED_USER} ALL=(root) NOPASSWD: $INSTALL_DIR/$SCRIPT_NAME.sh"
 
         echo "Creating sudoers file at $SUDOERS_FILE"
         echo -e "$SUDO_RULES" > "$SUDOERS_FILE"
@@ -322,7 +322,7 @@ else
     #######################################################
 
     WRAPPER_SCRIPT="$USER_HOME_PATH/$LOCAL_INSTALL_DIR/$SCRIPT_NAME"
-    printf '#!/bin/bash\n# WP Server - Server Management wrapper\n# This script will not work without appropriate permissions configured with sudo.\n# Contact WP NET support for help.\nsudo %s/wp-server.sh "$@"' "$INSTALL_DIR" > "$WRAPPER_SCRIPT"
+    printf '#!/bin/bash\n# WP Server - Server Management wrapper\n# This script will not work without appropriate permissions configured with sudo.\n# Contact WP NET support for help.\nsudo %s/%s.sh "$@"' "$INSTALL_DIR" "$SCRIPT_NAME" > "$WRAPPER_SCRIPT"
     sudo chown "$SELECTED_USER":"$SELECTED_USER" "$WRAPPER_SCRIPT"
     chmod 0700 "$WRAPPER_SCRIPT"
 
@@ -332,8 +332,8 @@ fi
 
 # Add cron job if --add-cron was passed
 if [ "$ADD_CRON" = true ]; then
-    CRON_FILE="/etc/cron.d/wp-server-cli"
-    CRON_CMD="bash /opt/wp-server/setup.sh --unattended"
+    CRON_FILE="/etc/cron.d/$SCRIPT_NAME-cli"
+    CRON_CMD="bash $INSTALL_DIR/setup.sh --unattended >/dev/null 2>&1"
     CRON_SCHEDULE="*/10 * * * * root $CRON_CMD"
     echo "Adding cron job to $CRON_FILE: $CRON_SCHEDULE"
     echo "$CRON_SCHEDULE" > "$CRON_FILE"

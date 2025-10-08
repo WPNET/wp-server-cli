@@ -1,6 +1,9 @@
 #!/bin/bash
-# WP Server - Service Management
-VERSION="1.4.10"
+# WP Server - CLI Tool
+VERSION="1.5.0"
+
+# Web root path (relative to user home directory)
+WEBROOT_PATH="files"
 
 # Check if mysql-server package is installed
 dpkg -s mysql-server &> /dev/null
@@ -10,7 +13,8 @@ else
     MYSQL_SERVER_INSTALLED=false
 fi
 
-CONFIG_FILE="/opt/wp-server/api.conf"
+SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
+CONFIG_FILE="$SCRIPT_DIR/api.conf"
 
 if [[ ! -f "$CONFIG_FILE" ]]; then
   echo "Error: API config file not found at $CONFIG_FILE"
@@ -147,13 +151,13 @@ case "$COMMAND" in
   fi
   case "$ARGUMENT" in
     status)
-    sudo -u "$CURRENT_USER" wp spinupwp status --path="$USER_HOME_PATH/files"
+    sudo -u "$CURRENT_USER" wp spinupwp status --path="$USER_HOME_PATH/$WEBROOT_PATH"
     ;;
     purge-page)
-    sudo -u "$CURRENT_USER" wp spinupwp cache purge-site --path="$USER_HOME_PATH/files"
+    sudo -u "$CURRENT_USER" wp spinupwp cache purge-site --path="$USER_HOME_PATH/$WEBROOT_PATH"
     ;;
     purge-object)
-    sudo -u "$CURRENT_USER" wp cache flush --path="$USER_HOME_PATH/files"
+    sudo -u "$CURRENT_USER" wp cache flush --path="$USER_HOME_PATH/$WEBROOT_PATH"
     ;;
     *)
     echo "Invalid cache command: $ARGUMENT"
@@ -181,7 +185,7 @@ case "$COMMAND" in
   SITE_NAME=$(basename "$USER_HOME_PATH")
 
   # TODO: Fix path to avoid hardcoding /files. need to get the site path dynamically from spinupwp api?
-  USER_INI_PATH="$USER_HOME_PATH/files/.user.ini"
+  USER_INI_PATH="$USER_HOME_PATH/$WEBROOT_PATH/.user.ini"
   TIMEOUT_VALUE=""
 
   if [ -n "$SET_TIMEOUT_VALUE" ]; then
@@ -212,7 +216,10 @@ case "$COMMAND" in
 
   # Create/update .user.ini if TIMEOUT_VALUE was set or changed
   if [ -n "$TIMEOUT_VALUE" ]; then
-    mkdir -p "$(dirname "$USER_INI_PATH")"
+    mkdir -p "$(dirname "$USER_INI_PATH")" || {
+        echo "ERROR: Failed to create directory for .user.ini file"
+        exit 1
+    }
     CURRENT_INI_TIMEOUT=""
     if [ -f "$USER_INI_PATH" ]; then
       CURRENT_INI_TIMEOUT=$(grep "max_execution_time" "$USER_INI_PATH" | cut -d'=' -f2 | tr -d ' ' | sed 's/[^0-9]*//g')
@@ -221,13 +228,24 @@ case "$COMMAND" in
     if [ -n "$CURRENT_INI_TIMEOUT" ] && [ "$CURRENT_INI_TIMEOUT" -eq "$TIMEOUT_VALUE" ]; then
       echo "PHP max_execution_time is already $TIMEOUT_VALUE seconds. Skipping update."
     elif grep -q "max_execution_time" "$USER_INI_PATH"; then
-      sed -i "s/^max_execution_time =.*/max_execution_time = $TIMEOUT_VALUE/" "$USER_INI_PATH"
-      echo "Updated max_execution_time in .user.ini to $TIMEOUT_VALUE seconds."
+      if sed -i "s/^max_execution_time =.*/max_execution_time = $TIMEOUT_VALUE/" "$USER_INI_PATH"; then
+        echo "Updated max_execution_time in .user.ini to $TIMEOUT_VALUE seconds."
+      else
+        echo "ERROR: Failed to update .user.ini file"
+        exit 1
+      fi
     else
-      echo "max_execution_time = $TIMEOUT_VALUE" >> "$USER_INI_PATH"
-      echo "Added max_execution_time to .user.ini with value $TIMEOUT_VALUE seconds."
+      if echo "max_execution_time = $TIMEOUT_VALUE" >> "$USER_INI_PATH"; then
+        echo "Added max_execution_time to .user.ini with value $TIMEOUT_VALUE seconds."
+      else
+        echo "ERROR: Failed to write to .user.ini file"
+        exit 1
+      fi
     fi
-    chown "$CURRENT_USER":"$CURRENT_USER" "$USER_INI_PATH"
+    if ! chown "$CURRENT_USER":"$CURRENT_USER" "$USER_INI_PATH"; then
+      echo "ERROR: Failed to set ownership on .user.ini file"
+      exit 1
+    fi
   fi
 
   # TIMEOUT_VALUE is guaranteed to be set. Proceed with Nginx config.
@@ -241,15 +259,30 @@ case "$COMMAND" in
   if [ -n "$NGINX_CURRENT_TIMEOUT" ] && [ "$NGINX_CURRENT_TIMEOUT" -eq "$TIMEOUT_VALUE" ]; then
     echo "Nginx fast-cgi timeout is already $TIMEOUT_VALUE seconds. Skipping update."
   else
-    mkdir -p "$(dirname "$NGINX_CONF_PATH")"
+    mkdir -p "$(dirname "$NGINX_CONF_PATH")" || {
+        echo "ERROR: Failed to create directory for nginx config file"
+        exit 1
+    }
         
     CONF_CONTENT="# Customise fastcgi timeout\nfastcgi_read_timeout ${TIMEOUT_VALUE}s;"
-    echo -e "$CONF_CONTENT" > "$NGINX_CONF_PATH"
-    echo "Updated Nginx fast-cgi timeout to $TIMEOUT_VALUE seconds."
+    if echo -e "$CONF_CONTENT" > "$NGINX_CONF_PATH"; then
+        echo "Updated Nginx fast-cgi timeout to $TIMEOUT_VALUE seconds."
+    else
+        echo "ERROR: Failed to write nginx configuration file"
+        exit 1
+    fi
 
-    echo "Restarting services ..."
-    restart_service "php"
-    restart_service "nginx"
+    # Validate nginx configuration before restarting services
+    if nginx -t >/dev/null 2>&1; then
+        echo "Nginx configuration is valid."
+        echo "Restarting services ..."
+        restart_service "php"
+        restart_service "nginx"
+    else
+        echo "ERROR: Nginx configuration is invalid. Services not restarted."
+        echo "Please check the nginx configuration at $NGINX_CONF_PATH"
+        exit 1
+    fi
   fi
   ;;
   *)
