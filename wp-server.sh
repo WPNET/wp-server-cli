@@ -1,6 +1,6 @@
 #!/bin/bash
 # WP Server - Service Management
-VERSION="1.4.5"
+VERSION="1.4.7"
 
 # Check if mysql-server package is installed
 dpkg -s mysql-server &> /dev/null
@@ -46,7 +46,6 @@ function print_usage() {
   echo -e "  ${GREEN}restart <service>${RESET}   Restart a service"
   echo -e "  ${GREEN}timeout [-s <seconds>]${RESET} Set PHP and Nginx timeouts for the current site. If -s is not provided, the value will be read from .user.ini or prompted."
   echo -e "  ${GREEN}cache status${RESET}        Show SpinupWP cache status (wp spinupwp status)"
-  echo -e "  ${GREEN}cache status${RESET}        Show SpinupWP cache status (wp spinupwp status)"
   echo ""
   echo -e "${CYAN}Services for 'restart':${RESET}"
   echo -e "  PHP:          ${GREEN}php${RESET} (restarts all runtime versions)"
@@ -54,7 +53,6 @@ function print_usage() {
   if $MYSQL_SERVER_INSTALLED; then
     echo -e "  Database:     ${GREEN}db${RESET} | ${GREEN}mysql${RESET}"
   fi
-  echo -e "  Cache:        ${GREEN}redis${RESET}"
   echo -e "  Cache:        ${GREEN}redis${RESET}"
 }
 
@@ -79,16 +77,12 @@ function restart_service() {
       redis)
         service_name="redis"
         ;;
-      redis)
-        service_name="redis"
-        ;;
       *)
         echo "Invalid service alias provided to restart_service function: $service_to_restart"
         return 1
         ;;
     esac
 
-    local restart_api_url="$API_URL/servers/$SERVER_ID/services/$service_name/restart"
     local restart_api_url="$API_URL/servers/$SERVER_ID/services/$service_name/restart"
 
     RESPONSE=$(curl -s -X POST -H "Authorization: Bearer $API_KEY" -H "Content-Type: application/json" "$restart_api_url")
@@ -137,10 +131,10 @@ case "$COMMAND" in
             exit 1
         fi
         USER_HOME_PATH=$(getent passwd "$CURRENT_USER" | cut -d: -f6)
-        SITE_NAME=$(basename "$USER_HOME_PATH")
-
+        # echo "User home path: $USER_HOME_PATH"
         # Execute wp spinupwp status directly as the current user
-        sudo -u "$CURRENT_USER" wp spinupwp status --path="/sites/$SITE_NAME"
+        # TODO: Fix path to avoid hardcoding /files. need to get the site path dynamically from spinupwp api?
+        sudo -u "$CURRENT_USER" wp spinupwp status --path="$USER_HOME_PATH/files"
     else
         echo "Invalid cache command: $ARGUMENT"
         print_usage
@@ -167,7 +161,8 @@ case "$COMMAND" in
     USER_HOME_PATH=$(getent passwd "$CURRENT_USER" | cut -d: -f6)
     SITE_NAME=$(basename "$USER_HOME_PATH")
 
-    USER_INI_PATH="/sites/$SITE_NAME/files/.user.ini"
+    # TODO: Fix path to avoid hardcoding /files. need to get the site path dynamically from spinupwp api?
+    USER_INI_PATH="$USER_HOME_PATH/files/.user.ini"
     TIMEOUT_VALUE=""
 
     if [ -n "$SET_TIMEOUT_VALUE" ]; then
