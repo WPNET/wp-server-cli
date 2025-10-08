@@ -1,6 +1,6 @@
 #!/bin/bash
 # WP Server - Service Management
-VERSION="1.3.2"
+VERSION="1.3.3"
 
 # Check if mysql-server package is installed
 dpkg -s mysql-server &> /dev/null
@@ -165,15 +165,25 @@ case "$COMMAND" in
 
     # Now, TIMEOUT_VALUE is guaranteed to be set. Proceed with Nginx config.
     NGINX_CONF_PATH="/etc/nginx/sites-available/$SITE_NAME/location/fastcgi-timeout.conf"
-    mkdir -p "$(dirname "$NGINX_CONF_PATH")"
-    
-    CONF_CONTENT="# Customise fastcgi timeout\\nfastcgi_read_timeout ${TIMEOUT_VALUE}s;"
-    echo -e "$CONF_CONTENT" > "$NGINX_CONF_PATH"
-    echo "Updated Nginx timeout in $NGINX_CONF_PATH to $TIMEOUT_VALUE seconds."
+    NGINX_CURRENT_TIMEOUT=""
 
-    echo "Restarting services to apply changes..."
-    restart_service "php"
-    restart_service "nginx"
+    if [ -f "$NGINX_CONF_PATH" ]; then
+        NGINX_CURRENT_TIMEOUT=$(grep "fastcgi_read_timeout" "$NGINX_CONF_PATH" | cut -d' ' -f2 | sed 's/s;//g' | sed 's/[^0-9]*//g')
+    fi
+
+    if [ -n "$NGINX_CURRENT_TIMEOUT" ] && [ "$NGINX_CURRENT_TIMEOUT" -eq "$TIMEOUT_VALUE" ]; then
+        echo "Nginx timeout in $NGINX_CONF_PATH is already set to $TIMEOUT_VALUE seconds. Skipping update."
+    else
+        mkdir -p "$(dirname "$NGINX_CONF_PATH")"
+        
+        CONF_CONTENT="# Customise fastcgi timeout\\nfastcgi_read_timeout ${TIMEOUT_VALUE}s;"
+        echo -e "$CONF_CONTENT" > "$NGINX_CONF_PATH"
+        echo "Updated Nginx timeout in $NGINX_CONF_PATH to $TIMEOUT_VALUE seconds."
+
+        echo "Restarting services to apply changes..."
+        restart_service "php"
+        restart_service "nginx"
+    fi
     ;;
   *)
     echo "Invalid command: $COMMAND"
