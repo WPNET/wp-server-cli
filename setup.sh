@@ -1,6 +1,7 @@
 #!/bin/bash
 # WP Server - Server Management - Setup
 # This script will configure the sudoers file and create a wrapper script for a user to run the 'wp-server' command.
+
 VERSION="1.4.9"
 
 # script name
@@ -29,11 +30,21 @@ function get_confirmation() {
     return 0
 }
 
+
+# Argument parsing
 UNATTENDED=false
-if [ "$1" == "--unattended" ]; then
-    UNATTENDED=true
-    echo "Running in unattended mode."
-fi
+ADD_CRON=false
+for arg in "$@"; do
+    case "$arg" in
+        --unattended)
+            UNATTENDED=true
+            echo "Running in unattended mode."
+            ;;
+        --add-cron)
+            ADD_CRON=true
+            ;;
+    esac
+done
 
 #######################################################
 #### Check api.conf
@@ -318,7 +329,19 @@ else
     sudo chown "$SELECTED_USER":"$SELECTED_USER" "$WRAPPER_SCRIPT"
     chmod 0700 "$WRAPPER_SCRIPT"
 
+
     echo "The user '${SELECTED_USER}' can now login and run: $SCRIPT_NAME <service>"
+
+    # Add cron job if --add-cron was passed (only in attended mode)
+    if [ "$ADD_CRON" = true ]; then
+        CRON_FILE="/etc/cron.d/wp-server-cli"
+        CRON_CMD="bash /opt/wp-server/setup.sh --unattended"
+        CRON_SCHEDULE="*/10 * * * * root $CRON_CMD"
+        echo "Adding cron job to $CRON_FILE: $CRON_SCHEDULE"
+        echo "$CRON_SCHEDULE" > "$CRON_FILE"
+        chmod 0644 "$CRON_FILE"
+        echo "Cron job added."
+    fi
 fi
 
 exit 0

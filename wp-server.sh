@@ -57,7 +57,7 @@ function print_usage() {
   echo -e "  ${GREEN}timeout [-s <seconds>]${RESET} Set PHP and Nginx timeouts for the current site. If -s is not provided, the value will be read from .user.ini or prompted."
   echo -e "  ${GREEN}cache status${RESET}           Show cache status"
   echo -e "  ${GREEN}cache purge-page${RESET}       Purge Nginx page cache"
-  echo -e "  ${GREEN}cache purge-object${RESET}     Purge object cache (equivalent to wp cache flush)"
+  echo -e "  ${GREEN}cache purge-object${RESET}     Purge PHP Object cache (equivalent to wp cache flush)"
   echo ""
   echo -e "${CYAN}Services for 'restart':${RESET}"
   echo -e "  Cache:        ${GREEN}redis${RESET}"
