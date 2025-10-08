@@ -1,7 +1,7 @@
 #!/bin/bash
 # WP Server - Server Management - Setup
 # This script will configure the sudoers file and create a wrapper script for a user to run the 'wp-server' command.
-# Version: 1.3.2
+# Version: 1.3.4
 
 # script name
 SCRIPT_NAME="wp-server"
@@ -44,9 +44,8 @@ if [ "$UNATTENDED" = true ]; then
     fi
 
     if ! grep -q "^API_KEY=." "$CONFIG_FILE" || \
-       ! grep -q "^API_URL=." "$CONFIG_FILE" || \
-       ! grep -q "^SERVER_ID=." "$CONFIG_FILE"; then
-        echo "ERROR: In unattended mode, api.conf must exist and contain non-empty API_KEY, API_URL, and SERVER_ID."
+       ! grep -q "^API_URL=." "$CONFIG_FILE"; then
+        echo "ERROR: In unattended mode, api.conf must exist and contain non-empty API_KEY and API_URL."
         exit 1
     fi
     echo "Configuration file is valid for unattended mode."
@@ -105,28 +104,27 @@ fi
 chmod 0600 "$CONFIG_FILE"
 chmod 0700 "$INSTALL_DIR"/wp-server.sh
 
-if [ "$UNATTENDED" = false ]; then
-    # Only fetch and set SERVER_ID if it's not already present in the config file
-    if ! grep -q "^SERVER_ID=." "$CONFIG_FILE"; then
-        # Get ALL servers from API
-        SERVERS_JSON=$(curl -s -X GET "$API_URL/?limit=100" -H "Accept: application/json" -H "Authorization: Bearer $API_KEY")
+# Logic for fetching and setting SERVER_ID
+# This block will now run in both interactive and unattended modes, but only if SERVER_ID is not already set.
+if ! grep -q "^SERVER_ID=." "$CONFIG_FILE"; then
+    # Get ALL servers from API
+    SERVERS_JSON=$(curl -s -X GET "$API_URL/?limit=100" -H "Accept: application/json" -H "Authorization: Bearer $API_KEY")
 
-        #######################################################
-        #### SET SERVER_ID
-        #######################################################
+    #######################################################
+    #### SET SERVER_ID
+    #######################################################
 
-        # Find server ID based on hostname
-        SERVER_ID=$(echo "$SERVERS_JSON" | jq -r ".data[] | select(.name == \"$HOSTNAME\") | .id")
-        echo "Server $HOSTNAME is server ID: $SERVER_ID"
+    # Find server ID based on hostname
+    SERVER_ID=$(echo "$SERVERS_JSON" | jq -r ".data[] | select(.name == \"$HOSTNAME\") | .id")
+    echo "Server $HOSTNAME is server ID: $SERVER_ID"
 
-        # Find and replace SERVER_ID in config file
-        if grep -q "^SERVER_ID=" "$CONFIG_FILE"; then
-          sed -i "s/^SERVER_ID=.*/SERVER_ID=$SERVER_ID/" "$CONFIG_FILE"
-        else
-          echo "SERVER_ID=$SERVER_ID" >> "$CONFIG_FILE"
-        fi
-        echo "Server ID $SERVER_ID written to $CONFIG_FILE"
+    # Find and replace SERVER_ID in config file
+    if grep -q "^SERVER_ID=" "$CONFIG_FILE"; then
+      sed -i "s/^SERVER_ID=.*/SERVER_ID=$SERVER_ID/" "$CONFIG_FILE"
+    else
+      echo "SERVER_ID=$SERVER_ID" >> "$CONFIG_FILE"
     fi
+    echo "Server ID $SERVER_ID written to $CONFIG_FILE"
 fi
 
 #######################################################
