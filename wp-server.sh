@@ -1,6 +1,6 @@
 #!/bin/bash
 # WP Server - CLI Tool
-VERSION="1.5.0"
+VERSION="1.5.1"
 
 # Web root path (relative to user home directory)
 WEBROOT_PATH="files"
@@ -152,6 +152,10 @@ case "$COMMAND" in
   case "$ARGUMENT" in
     status)
     sudo -u "$CURRENT_USER" wp spinupwp status --path="$USER_HOME_PATH/$WEBROOT_PATH"
+    echo ""
+    echo "NOTE:"
+    echo "- To enable / disable the Object cache, edit the WP_REDIS_DISABLED constant in wp-config.php."
+    echo "- To enable / disable the Nginx page cache, please open a support ticket: https://wpnet.nz/ticket/"
     ;;
     purge-page)
     sudo -u "$CURRENT_USER" wp spinupwp cache purge-site --path="$USER_HOME_PATH/$WEBROOT_PATH"

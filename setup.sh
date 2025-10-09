@@ -210,7 +210,7 @@ if [ "$UNATTENDED" = true ]; then
         fi
 
         if [ ! -f "$WRAPPER_SCRIPT" ]; then
-            printf '#!/bin/bash\n# WP Server - Server Management wrapper\n# This script will not work without appropriate permissions configured with sudo.\n# Contact WP NET support for help.\nsudo %s/%s.sh "$@"' "$INSTALL_DIR" "$SCRIPT_NAME" > "$WRAPPER_SCRIPT"
+            printf '#!/bin/bash\n# WP Server - CLI Tool\n# This will not work without appropriate permissions configured with sudo.\n# Contact WP NET Support for help.\nsudo %s/%s.sh "$@"' "$INSTALL_DIR" "$SCRIPT_NAME" > "$WRAPPER_SCRIPT"
             chown "$SELECTED_USER":"$SELECTED_USER" "$WRAPPER_SCRIPT"
             chmod 0700 "$WRAPPER_SCRIPT"
             echo "Wrapper script created for '${SELECTED_USER}'."
@@ -322,7 +322,7 @@ else
     #######################################################
 
     WRAPPER_SCRIPT="$USER_HOME_PATH/$LOCAL_INSTALL_DIR/$SCRIPT_NAME"
-    printf '#!/bin/bash\n# WP Server - Server Management wrapper\n# This script will not work without appropriate permissions configured with sudo.\n# Contact WP NET support for help.\nsudo %s/%s.sh "$@"' "$INSTALL_DIR" "$SCRIPT_NAME" > "$WRAPPER_SCRIPT"
+    printf '#!/bin/bash\n# WP Server - CLI Tool\n# This will not work without appropriate permissions configured with sudo.\n# Contact WP NET Support for help.\nsudo %s/%s.sh "$@"' "$INSTALL_DIR" "$SCRIPT_NAME" > "$WRAPPER_SCRIPT"
     sudo chown "$SELECTED_USER":"$SELECTED_USER" "$WRAPPER_SCRIPT"
     chmod 0700 "$WRAPPER_SCRIPT"
 
