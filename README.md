@@ -1,5 +1,5 @@
 # wp-server
-`wp-server` is a command-line tool for managing common server and site-specific operations on a WordPress server. It simplifies tasks such as restarting services, managing cache, and adjusting PHP timeouts.
+`wp-server` is a command-line tool for managing common server and site-specific operations on a SpinupWP server. It provides "site" users with simple CLI tools for tasks such as restarting services, managing cache, and adjusting PHP timeouts.
 
 ## Installation
 
@@ -23,7 +23,7 @@
     ```
 
 ## Usage
-The `wp-server` script must be run by a user with `sudo` privileges. To see the list of available commands, run the script with no arguments:
+To see the list of available commands, run the script with no arguments:
 ```bash
 wp-server
 ```
