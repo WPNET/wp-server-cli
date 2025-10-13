@@ -25,8 +25,8 @@ wp-server
 Usage:    wp-server <command>
 
 Commands:
-  restart <service>   Restart a service
-  timeout             Set PHP and Nginx timeouts for the current site
+  restart <service>      Restart a service
+  timeout [-s <seconds>] Set PHP and Nginx timeouts for the current site
 
 Services for 'restart':
   PHP:          php (restarts all runtime versions)

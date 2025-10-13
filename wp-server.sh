@@ -52,15 +52,36 @@ GREEN='\e[32m'
 YELLOW='\e[33m'
 BLUE='\e[34m'
 
+# Function to check if SpinupWP plugin is active
+function is_spinupwp_plugin_active() {
+  if [ -z "$CURRENT_USER" ] || [ -z "$USER_HOME_PATH" ]; then
+    return 1
+  fi
+  # Suppress PHP notices and warnings from wp-cli, and check if the plugin is active
+  WP_CLI_PHP_ARGS="-d error_reporting=E_ERROR" sudo -u "$CURRENT_USER" wp plugin is-active spinupwp --path="$USER_HOME_PATH/$WEBROOT_PATH" &> /dev/null
+  if [ $? -eq 0 ]; then
+    return 0 # Plugin is active
+  else
+    return 1 # Plugin is not active
+  fi
+}
+
+SPINUPWP_ACTIVE=false
+if is_spinupwp_plugin_active; then
+    SPINUPWP_ACTIVE=true
+fi
+
 function print_usage() {
   echo -e "${CYAN}Usage:${RESET}    wp-server ${GREEN}<command>${RESET}"
   echo ""
   echo -e "${CYAN}Commands:${RESET}"
   echo -e "  ${GREEN}restart <service>${RESET}      Restart a service"
   echo -e "  ${GREEN}timeout [-s <seconds>]${RESET} Set PHP and Nginx timeouts for the current site. If -s is not provided, the value will be read from .user.ini or prompted."
-  echo -e "  ${GREEN}cache status${RESET}           Show cache status"
-  echo -e "  ${GREEN}cache purge-page${RESET}       Purge Nginx page cache"
-  echo -e "  ${GREEN}cache purge-object${RESET}     Purge PHP Object cache (equivalent to wp cache flush)"
+  if $SPINUPWP_ACTIVE; then
+    echo -e "  ${GREEN}cache status${RESET}           Show cache status"
+    echo -e "  ${GREEN}cache purge-page${RESET}       Purge Nginx page cache"
+    echo -e "  ${GREEN}cache purge-object${RESET}     Purge PHP Object cache (equivalent to wp cache flush)"
+  fi
   echo ""
   echo -e "${CYAN}Services for 'restart':${RESET}"
   echo -e "  Cache:        ${GREEN}redis${RESET}"
@@ -145,23 +166,27 @@ case "$COMMAND" in
   restart_service "$ARGUMENT"
   ;;
   cache)
+  if ! $SPINUPWP_ACTIVE; then
+    echo "Error: Cache commands are not available because the SpinupWP plugin is not active."
+    exit 1
+  fi
   if [ -z "$CURRENT_USER" ] || [ -z "$USER_HOME_PATH" ]; then
     echo "Error: Could not determine the user who ran this command. This script must be run with sudo by a non-root user."
     exit 1
   fi
   case "$ARGUMENT" in
     status)
-    sudo -u "$CURRENT_USER" wp spinupwp status --path="$USER_HOME_PATH/$WEBROOT_PATH"
+    WP_CLI_PHP_ARGS="-d error_reporting=E_ERROR" sudo -u "$CURRENT_USER" wp spinupwp status --path="$USER_HOME_PATH/$WEBROOT_PATH"
     echo ""
     echo "NOTE:"
     echo "- To enable / disable the Object cache, edit the WP_REDIS_DISABLED constant in wp-config.php."
     echo "- To enable / disable the Nginx page cache, please open a support ticket: https://wpnet.nz/ticket/"
     ;;
     purge-page)
-    sudo -u "$CURRENT_USER" wp spinupwp cache purge-site --path="$USER_HOME_PATH/$WEBROOT_PATH"
+    WP_CLI_PHP_ARGS="-d error_reporting=E_ERROR" sudo -u "$CURRENT_USER" wp spinupwp cache purge-site --path="$USER_HOME_PATH/$WEBROOT_PATH"
     ;;
     purge-object)
-    sudo -u "$CURRENT_USER" wp cache flush --path="$USER_HOME_PATH/$WEBROOT_PATH"
+    WP_CLI_PHP_ARGS="-d error_reporting=E_ERROR" sudo -u "$CURRENT_USER" wp cache flush --path="$USER_HOME_PATH/$WEBROOT_PATH"
     ;;
     *)
     echo "Invalid cache command: $ARGUMENT"
