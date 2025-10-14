@@ -52,13 +52,13 @@ GREEN='\e[32m'
 YELLOW='\e[33m'
 BLUE='\e[34m'
 
-# Function to check if SpinupWP plugin is active
-function is_spinupwp_plugin_active() {
+# Function to check if cache management plugin is active
+function is_cache_plugin_active() {
   if [ -z "$CURRENT_USER" ] || [ -z "$USER_HOME_PATH" ]; then
     return 1
   fi
   # Suppress PHP notices and warnings from wp-cli, and check if the plugin is active
-  WP_CLI_PHP_ARGS="-d error_reporting=E_ERROR" sudo -u "$CURRENT_USER" wp plugin is-active spinupwp --path="$USER_HOME_PATH/$WEBROOT_PATH" &> /dev/null
+  WP_CLI_PHP_ARGS="-d error_reporting=E_ERROR" sudo -u "$CURRENT_USER" wp plugin list --status=active --format=csv --fields=name --path="$USER_HOME_PATH/$WEBROOT_PATH" 2>/dev/null | grep -q "^wp-server-cache$"
   if [ $? -eq 0 ]; then
     return 0 # Plugin is active
   else
@@ -66,9 +66,9 @@ function is_spinupwp_plugin_active() {
   fi
 }
 
-SPINUPWP_ACTIVE=false
-if is_spinupwp_plugin_active; then
-    SPINUPWP_ACTIVE=true
+CACHE_PLUGIN_ACTIVE=false
+if is_cache_plugin_active; then
+    CACHE_PLUGIN_ACTIVE=true
 fi
 
 function print_usage() {
@@ -77,7 +77,7 @@ function print_usage() {
   echo -e "${CYAN}Commands:${RESET}"
   echo -e "  ${GREEN}restart <service>${RESET}      Restart a service"
   echo -e "  ${GREEN}timeout [-s <seconds>]${RESET} Set PHP and Nginx timeouts for the current site. If -s is not provided, the value will be read from .user.ini or prompted."
-  if $SPINUPWP_ACTIVE; then
+  if $CACHE_PLUGIN_ACTIVE; then
     echo -e "  ${GREEN}cache status${RESET}           Show cache status"
     echo -e "  ${GREEN}cache purge-page${RESET}       Purge Nginx page cache"
     echo -e "  ${GREEN}cache purge-object${RESET}     Purge PHP Object cache (equivalent to wp cache flush)"
@@ -166,8 +166,8 @@ case "$COMMAND" in
   restart_service "$ARGUMENT"
   ;;
   cache)
-  if ! $SPINUPWP_ACTIVE; then
-    echo "Error: Cache commands are not available because the SpinupWP plugin is not active."
+  if ! $CACHE_PLUGIN_ACTIVE; then
+    echo "Error: Cache commands are not available because the cache management plugin is not active."
     exit 1
   fi
   if [ -z "$CURRENT_USER" ] || [ -z "$USER_HOME_PATH" ]; then
@@ -176,14 +176,14 @@ case "$COMMAND" in
   fi
   case "$ARGUMENT" in
     status)
-    WP_CLI_PHP_ARGS="-d error_reporting=E_ERROR" sudo -u "$CURRENT_USER" wp spinupwp status --path="$USER_HOME_PATH/$WEBROOT_PATH"
+    WP_CLI_PHP_ARGS="-d error_reporting=E_ERROR" sudo -u "$CURRENT_USER" wp wp-server-cache status --path="$USER_HOME_PATH/$WEBROOT_PATH"
     echo ""
     echo "NOTE:"
     echo "- To enable / disable the Object cache, edit the WP_REDIS_DISABLED constant in wp-config.php."
     echo "- To enable / disable the Nginx page cache, please open a support ticket: https://wpnet.nz/ticket/"
     ;;
     purge-page)
-    WP_CLI_PHP_ARGS="-d error_reporting=E_ERROR" sudo -u "$CURRENT_USER" wp spinupwp cache purge-site --path="$USER_HOME_PATH/$WEBROOT_PATH"
+    WP_CLI_PHP_ARGS="-d error_reporting=E_ERROR" sudo -u "$CURRENT_USER" wp wp-server-cache purge-site --path="$USER_HOME_PATH/$WEBROOT_PATH"
     ;;
     purge-object)
     WP_CLI_PHP_ARGS="-d error_reporting=E_ERROR" sudo -u "$CURRENT_USER" wp cache flush --path="$USER_HOME_PATH/$WEBROOT_PATH"
@@ -213,7 +213,7 @@ case "$COMMAND" in
 
   SITE_NAME=$(basename "$USER_HOME_PATH")
 
-  # TODO: Fix path to avoid hardcoding /files. need to get the site path dynamically from spinupwp api?
+  # TODO: Fix path to avoid hardcoding /files. need to get the site path dynamically from the API?
   USER_INI_PATH="$USER_HOME_PATH/$WEBROOT_PATH/.user.ini"
   TIMEOUT_VALUE=""
 

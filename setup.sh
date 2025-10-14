@@ -14,7 +14,7 @@ CONFIG_FILE="$INSTALL_DIR/api.conf"
 # Get hostname
 HOSTNAME=$(hostname -f)
 
-DEFAULT_API_URL="https://api.spinupwp.app/v1"
+DEFAULT_API_URL=""
 
 # confirmation helper
 function get_confirmation() {

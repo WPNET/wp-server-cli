@@ -1,5 +1,5 @@
 # wp-server
-`wp-server` is a command-line tool for managing common server and site-specific operations on a SpinupWP server. It provides "site" users with simple CLI tools for tasks such as restarting services, managing cache, and adjusting PHP timeouts.
+`wp-server` is a command-line tool for managing common server and site-specific operations. It provides "site" users with simple CLI tools for tasks such as restarting services, managing cache, and adjusting PHP timeouts.
 
 ## Installation
 
@@ -71,7 +71,7 @@ wp-server timeout
 ```
 
 ### `cache <sub-command>`
-This command group is for managing the site's cache. These commands are only available if the site has the SpinupWP plugin active.
+This command group is for managing the site's cache. These commands are only available if the site has a compatible cache management plugin active.
 
 **Usage:**
 ```bash
