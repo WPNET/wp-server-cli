@@ -58,7 +58,7 @@ function is_cache_plugin_active() {
     return 1
   fi
   # Suppress PHP notices and warnings from wp-cli, and check if the plugin is active
-  WP_CLI_PHP_ARGS="-d error_reporting=E_ERROR" sudo -u "$CURRENT_USER" wp plugin list --status=active --format=csv --fields=name --path="$USER_HOME_PATH/$WEBROOT_PATH" 2>/dev/null | grep -q "^wp-server-cache$"
+  WP_CLI_PHP_ARGS="-d error_reporting=E_ERROR" sudo -u "$CURRENT_USER" wp plugin is-active wp-server-cache --path="$USER_HOME_PATH/$WEBROOT_PATH" &> /dev/null
   if [ $? -eq 0 ]; then
     return 0 # Plugin is active
   else

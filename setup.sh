@@ -14,8 +14,6 @@ CONFIG_FILE="$INSTALL_DIR/api.conf"
 # Get hostname
 HOSTNAME=$(hostname -f)
 
-DEFAULT_API_URL=""
-
 # confirmation helper
 function get_confirmation() {
     while true; do
@@ -70,10 +68,12 @@ else # Interactive mode
         echo "Creating new configuration file: $CONFIG_FILE"
         # prompt for API_KEY
         read -p "Enter API key: " API_KEY
+        # prompt for API_URL
+        read -p "Enter API URL: " API_URL
         # Write to config file
         echo "API_KEY=$API_KEY" > "$CONFIG_FILE"
-        echo "API_URL=$DEFAULT_API_URL" >> "$CONFIG_FILE"
-        echo "'$CONFIG_FILE' file created with default API_URL."
+        echo "API_URL=$API_URL" >> "$CONFIG_FILE"
+        echo "'$CONFIG_FILE' file created."
       else
         echo "Cancelled"
         exit 1
@@ -104,13 +104,14 @@ else # Interactive mode
           echo "API_KEY updated in $CONFIG_FILE."
       fi
 
-      # Ensure API_URL is set (will use default if missing)
+      # Ensure API_URL is set (prompt if missing)
       if [[ -z "$API_URL_FROM_FILE" ]]; then
-          echo "API_URL not found in $CONFIG_FILE. Setting to default: $DEFAULT_API_URL"
+          echo "API_URL not found in $CONFIG_FILE."
+          read -p "Enter API URL: " API_URL
           if grep -q "^API_URL=" "$CONFIG_FILE"; then
-              sed -i "s|^API_URL=.*|API_URL=$DEFAULT_API_URL|" "$CONFIG_FILE"
+              sed -i "s|^API_URL=.*|API_URL=$API_URL|" "$CONFIG_FILE"
           else
-              echo "API_URL=$DEFAULT_API_URL" >> "$CONFIG_FILE"
+              echo "API_URL=$API_URL" >> "$CONFIG_FILE"
           fi
           echo "API_URL updated in $CONFIG_FILE."
       fi
