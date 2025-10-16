@@ -180,8 +180,8 @@ case "$COMMAND" in
     WP_CLI_PHP_ARGS="-d error_reporting=E_ERROR" sudo -u "$CURRENT_USER" wp spinupwp status --path="$USER_HOME_PATH/$WEBROOT_PATH"
     echo ""
     echo "NOTE:"
-    echo "- To enable / disable the Object cache, edit the WP_REDIS_DISABLED constant in wp-config.php."
     echo "- To enable / disable the Nginx page cache, please open a support ticket: https://wpnet.nz/ticket/"
+    echo "- To enable / disable the Object cache, edit the WP_REDIS_DISABLED constant in wp-config.php."
     ;;
     purge-page)
     WP_CLI_PHP_ARGS="-d error_reporting=E_ERROR" sudo -u "$CURRENT_USER" wp spinupwp cache purge-site --path="$USER_HOME_PATH/$WEBROOT_PATH"
