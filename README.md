@@ -1,5 +1,5 @@
 # wp-server
-`wp-server` is a command-line tool for managing common server and site-specific operations on a SpinupWP server. It provides "site" users with simple CLI tools for tasks such as restarting services, managing cache, and adjusting PHP timeouts.
+`wp-server` is a command-line tool for managing common server and site-specific operations. It provides "site" users with simple CLI tools for tasks such as restarting services, managing cache, adjusting PHP timeouts, and configuring upload limits.
 
 ## Installation
 
@@ -70,8 +70,37 @@ wp-server timeout -s 300
 wp-server timeout
 ```
 
+### `max-upload [-m <MB>]`
+This command sets the PHP `upload_max_filesize` and `post_max_size`, as well as Nginx `client_max_body_size` for the current site.
+
+**Behavior:**
+*   The `.user.ini` file's `upload_max_filesize` value is authoritative. If it exists, that value will be used for Nginx configuration without modifying `.user.ini`.
+*   If `.user.ini` does not exist or does not contain `upload_max_filesize`, the command will prompt for a value (or use the `-m` flag) and create/update the `.user.ini` file.
+*   When writing to `.user.ini`, the command sets:
+    *   `upload_max_filesize = <MB>M`
+    *   `post_max_size = <MB+2>M` (always 2 MB higher than upload_max_filesize)
+*   The Nginx configuration is written to: `/etc/nginx/sites-available/<site>/server/client_max_body_size.conf`
+*   After updating configurations, Nginx is validated with `nginx -t` before restarting PHP and Nginx services.
+
+**Usage:**
+```bash
+wp-server max-upload [-m <MB>]
+```
+
+**Options:**
+*   `-m, --mb <MB>`: (Optional) Specify the upload size in megabytes. If this option is not provided, the script will attempt to read the existing value from the site's `.user.ini` file. If no value is found, it will prompt the user to enter one.
+
+**Examples:**
+```bash
+# Set the upload size to 256 MB
+wp-server max-upload -m 256
+
+# Run in interactive mode to view the current upload size or set a new one
+wp-server max-upload
+```
+
 ### `cache <sub-command>`
-This command group is for managing the site's cache. These commands are only available if the site has the SpinupWP plugin active.
+This command group is for managing the site's cache. These commands require a WordPress management plugin to be active.
 
 **Usage:**
 ```bash

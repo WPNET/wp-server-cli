@@ -1,6 +1,6 @@
 #!/bin/bash
 # WP Server - CLI Tool
-VERSION="1.5.1"
+VERSION="1.6.0"
 
 # Web root path (relative to user home directory)
 WEBROOT_PATH="files"
@@ -77,6 +77,7 @@ function print_usage() {
   echo -e "${CYAN}Commands:${RESET}"
   echo -e "  ${GREEN}restart <service>${RESET}      Restart a service"
   echo -e "  ${GREEN}timeout [-s <seconds>]${RESET} Set PHP and Nginx timeouts for the current site. If -s is not provided, the value will be read from .user.ini or prompted."
+  echo -e "  ${GREEN}max-upload [-m <MB>]${RESET}   Set PHP upload and Nginx max body size for the current site. If -m is not provided, the value will be read from .user.ini or prompted."
   if $SPINUPWP_ACTIVE; then
     echo -e "  ${GREEN}cache status${RESET}           Show cache status"
     echo -e "  ${GREEN}cache purge-page${RESET}       Purge Nginx page cache"
@@ -167,7 +168,7 @@ case "$COMMAND" in
   ;;
   cache)
   if ! $SPINUPWP_ACTIVE; then
-    echo "Error: Cache commands are not available because the SpinupWP plugin is not active."
+    echo "Error: Cache commands require a WordPress management plugin to be active."
     exit 1
   fi
   if [ -z "$CURRENT_USER" ] || [ -z "$USER_HOME_PATH" ]; then
@@ -296,6 +297,163 @@ case "$COMMAND" in
     CONF_CONTENT="# Customise fastcgi timeout\nfastcgi_read_timeout ${TIMEOUT_VALUE}s;"
     if echo -e "$CONF_CONTENT" > "$NGINX_CONF_PATH"; then
         echo "Updated Nginx fast-cgi timeout to $TIMEOUT_VALUE seconds."
+    else
+        echo "ERROR: Failed to write nginx configuration file"
+        exit 1
+    fi
+
+    # Validate nginx configuration before restarting services
+    if nginx -t >/dev/null 2>&1; then
+        echo "Nginx configuration is valid."
+        echo "Restarting services ..."
+        restart_service "php"
+        restart_service "nginx"
+    else
+        echo "ERROR: Nginx configuration is invalid. Services not restarted."
+        echo "Please check the nginx configuration at $NGINX_CONF_PATH"
+        exit 1
+    fi
+  fi
+  ;;
+  max-upload)
+  SET_UPLOAD_VALUE=""
+  # Parse optional -m or --mb flag
+  if [ "$ARGUMENT" == "-m" ] || [ "$ARGUMENT" == "--mb" ]; then
+    SET_UPLOAD_VALUE="$3"
+    if ! [[ "$SET_UPLOAD_VALUE" =~ ^[0-9]+$ ]]; then
+      echo "Error: Invalid upload size value provided with -m/--mb. Please provide a number."
+      exit 1
+    fi
+  fi
+
+  if [ -z "$CURRENT_USER" ] || [ -z "$USER_HOME_PATH" ]; then
+    echo "Error: Could not determine the user who ran this command. This script must be run with sudo by a non-root user."
+    exit 1
+  fi
+
+  SITE_NAME=$(basename "$USER_HOME_PATH")
+  USER_INI_PATH="$USER_HOME_PATH/$WEBROOT_PATH/.user.ini"
+  UPLOAD_VALUE=""
+
+  if [ -n "$SET_UPLOAD_VALUE" ]; then
+    UPLOAD_VALUE="$SET_UPLOAD_VALUE"
+    echo "Using provided upload size: ${UPLOAD_VALUE}MB."
+  else
+    # Try to read existing upload_max_filesize value from .user.ini
+    if [ -f "$USER_INI_PATH" ]; then
+      UPLOAD_VALUE=$(grep "^upload_max_filesize" "$USER_INI_PATH" | cut -d'=' -f2 | tr -d ' ' | sed 's/[^0-9]*//g')
+      if [ -n "$UPLOAD_VALUE" ]; then
+        echo "Found existing upload_max_filesize of ${UPLOAD_VALUE}MB in .user.ini"
+      else
+        echo "No valid 'upload_max_filesize' found in existing .user.ini."
+      fi
+    fi
+
+    # If UPLOAD_VALUE is still empty, prompt the user
+    if [ -z "$UPLOAD_VALUE" ]; then
+      read -p "Enter desired upload size in MB: " USER_INPUT_UPLOAD
+      # Validate input
+      if ! [[ "$USER_INPUT_UPLOAD" =~ ^[0-9]+$ ]]; then
+        echo "Error: Invalid input. Please provide a number."
+        exit 1
+      fi
+      UPLOAD_VALUE="$USER_INPUT_UPLOAD"
+    fi
+  fi
+
+  # Only create/update .user.ini if it doesn't exist or doesn't have upload_max_filesize
+  SHOULD_UPDATE_INI=false
+  if [ ! -f "$USER_INI_PATH" ]; then
+    SHOULD_UPDATE_INI=true
+  elif ! grep -q "^upload_max_filesize" "$USER_INI_PATH"; then
+    SHOULD_UPDATE_INI=true
+  elif [ -n "$SET_UPLOAD_VALUE" ]; then
+    # If -m flag was provided, we should update .user.ini
+    SHOULD_UPDATE_INI=true
+  fi
+
+  if [ "$SHOULD_UPDATE_INI" = true ]; then
+    mkdir -p "$(dirname "$USER_INI_PATH")" || {
+        echo "ERROR: Failed to create directory for .user.ini file"
+        exit 1
+    }
+
+    # Calculate post_max_size (upload + 2MB)
+    POST_MAX_SIZE=$((UPLOAD_VALUE + 2))
+
+    # Check current values
+    CURRENT_INI_UPLOAD=""
+    CURRENT_INI_POST=""
+    if [ -f "$USER_INI_PATH" ]; then
+      CURRENT_INI_UPLOAD=$(grep "^upload_max_filesize" "$USER_INI_PATH" | cut -d'=' -f2 | tr -d ' ' | sed 's/[^0-9]*//g')
+      CURRENT_INI_POST=$(grep "^post_max_size" "$USER_INI_PATH" | cut -d'=' -f2 | tr -d ' ' | sed 's/[^0-9]*//g')
+    fi
+
+    # Update or add upload_max_filesize
+    if [ -n "$CURRENT_INI_UPLOAD" ] && [ "$CURRENT_INI_UPLOAD" -eq "$UPLOAD_VALUE" ]; then
+      echo "PHP upload_max_filesize is already ${UPLOAD_VALUE}M. Skipping update."
+    elif grep -q "^upload_max_filesize" "$USER_INI_PATH" 2>/dev/null; then
+      if sed -i "s/^upload_max_filesize =.*/upload_max_filesize = ${UPLOAD_VALUE}M/" "$USER_INI_PATH"; then
+        echo "Updated upload_max_filesize in .user.ini to ${UPLOAD_VALUE}M."
+      else
+        echo "ERROR: Failed to update .user.ini file"
+        exit 1
+      fi
+    else
+      if echo "upload_max_filesize = ${UPLOAD_VALUE}M" >> "$USER_INI_PATH"; then
+        echo "Added upload_max_filesize to .user.ini with value ${UPLOAD_VALUE}M."
+      else
+        echo "ERROR: Failed to write to .user.ini file"
+        exit 1
+      fi
+    fi
+
+    # Update or add post_max_size
+    if [ -n "$CURRENT_INI_POST" ] && [ "$CURRENT_INI_POST" -eq "$POST_MAX_SIZE" ]; then
+      echo "PHP post_max_size is already ${POST_MAX_SIZE}M. Skipping update."
+    elif grep -q "^post_max_size" "$USER_INI_PATH" 2>/dev/null; then
+      if sed -i "s/^post_max_size =.*/post_max_size = ${POST_MAX_SIZE}M/" "$USER_INI_PATH"; then
+        echo "Updated post_max_size in .user.ini to ${POST_MAX_SIZE}M."
+      else
+        echo "ERROR: Failed to update .user.ini file"
+        exit 1
+      fi
+    else
+      if echo "post_max_size = ${POST_MAX_SIZE}M" >> "$USER_INI_PATH"; then
+        echo "Added post_max_size to .user.ini with value ${POST_MAX_SIZE}M."
+      else
+        echo "ERROR: Failed to write to .user.ini file"
+        exit 1
+      fi
+    fi
+
+    if ! chown "$CURRENT_USER":"$CURRENT_USER" "$USER_INI_PATH"; then
+      echo "ERROR: Failed to set ownership on .user.ini file"
+      exit 1
+    fi
+  else
+    echo "Using existing upload_max_filesize from .user.ini. Not modifying .user.ini."
+  fi
+
+  # UPLOAD_VALUE is guaranteed to be set. Proceed with Nginx config.
+  NGINX_CONF_PATH="/etc/nginx/sites-available/$SITE_NAME/server/client_max_body_size.conf"
+  NGINX_CURRENT_UPLOAD=""
+
+  if [ -f "$NGINX_CONF_PATH" ]; then
+    NGINX_CURRENT_UPLOAD=$(grep "client_max_body_size" "$NGINX_CONF_PATH" | awk '{print $2}' | sed 's/m;//g' | sed 's/[^0-9]*//g')
+  fi
+
+  if [ -n "$NGINX_CURRENT_UPLOAD" ] && [ "$NGINX_CURRENT_UPLOAD" -eq "$UPLOAD_VALUE" ]; then
+    echo "Nginx client_max_body_size is already ${UPLOAD_VALUE}m. Skipping update."
+  else
+    mkdir -p "$(dirname "$NGINX_CONF_PATH")" || {
+        echo "ERROR: Failed to create directory for nginx config file"
+        exit 1
+    }
+        
+    CONF_CONTENT="# Customise client max body size\nclient_max_body_size ${UPLOAD_VALUE}m;"
+    if echo -e "$CONF_CONTENT" > "$NGINX_CONF_PATH"; then
+        echo "Updated Nginx client_max_body_size to ${UPLOAD_VALUE}m."
     else
         echo "ERROR: Failed to write nginx configuration file"
         exit 1
