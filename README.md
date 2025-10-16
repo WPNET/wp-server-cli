@@ -1,5 +1,5 @@
 # wp-server
-`wp-server` is a command-line tool for managing common server and site-specific operations on a SpinupWP server. It provides "site" users with simple CLI tools for tasks such as restarting services, managing cache, and adjusting PHP timeouts.
+`wp-server` is a command-line tool for managing common server and site-specific operations. It provides "site" users with simple CLI tools for tasks such as restarting services, managing caches and adjusting timeouts and max upload limits.
 
 ## Installation
 
@@ -74,10 +74,9 @@ wp-server timeout
 This command sets the maximum upload size for PHP and Nginx on the current site.
 
 **Behavior:**
-*   If `.user.ini` contains `upload_max_filesize`, that value is authoritative and will be used for Nginx `client_max_body_size`.
+*   If `.user.ini` contains `upload_max_filesize`, that value is authoritative.
 *   The script will ensure `post_max_size` is set to `upload_max_filesize + 2 MB` (updating `.user.ini` if necessary).
-*   Nginx configuration uses lowercase `m` and includes a semicolon (e.g., `client_max_body_size 256m;`).
-*   Configuration is written to `/etc/nginx/sites-available/${current_site}/server/client_max_body_size.conf`.
+*   Configuration is written to `/etc/nginx/sites-available/${current_site}/server/client-max-body-size.conf`.
 
 **Usage:**
 ```bash
@@ -97,7 +96,7 @@ wp-server max-upload
 ```
 
 ### `cache <sub-command>`
-This command group is for managing the site's cache. These commands are only available if the site has the SpinupWP plugin active.
+This command group is for managing the site's cache. These commands are only available if the site has the Cache Control plugin active.
 
 **Usage:**
 ```bash
