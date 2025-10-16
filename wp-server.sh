@@ -440,7 +440,7 @@ case "$COMMAND" in
   NGINX_CURRENT_UPLOAD=""
 
   if [ -f "$NGINX_CONF_PATH" ]; then
-    NGINX_CURRENT_UPLOAD=$(grep "client_max_body_size" "$NGINX_CONF_PATH" | awk '{print $2}' | sed 's/m;//g' | sed 's/[^0-9]*//g')
+    NGINX_CURRENT_UPLOAD=$(grep "client_max_body_size" "$NGINX_CONF_PATH" | awk '{print $2}' | sed 's/[mM];$//' | sed 's/[^0-9]*//g')
   fi
 
   if [ -n "$NGINX_CURRENT_UPLOAD" ] && [ "$NGINX_CURRENT_UPLOAD" -eq "$UPLOAD_VALUE" ]; then
@@ -450,7 +450,7 @@ case "$COMMAND" in
         echo "ERROR: Failed to create directory for nginx config file"
         exit 1
     }
-        
+
     CONF_CONTENT="# Customise client max body size\nclient_max_body_size ${UPLOAD_VALUE}m;"
     if echo -e "$CONF_CONTENT" > "$NGINX_CONF_PATH"; then
         echo "Updated Nginx client_max_body_size to ${UPLOAD_VALUE}m."
