@@ -70,6 +70,32 @@ wp-server timeout -s 300
 wp-server timeout
 ```
 
+### `max-upload [-m <megabytes>]`
+This command sets the maximum upload size for PHP and Nginx on the current site.
+
+**Behavior:**
+*   If `.user.ini` contains `upload_max_filesize`, that value is authoritative and will be used for Nginx `client_max_body_size`.
+*   The script will ensure `post_max_size` is set to `upload_max_filesize + 2 MB` (updating `.user.ini` if necessary).
+*   Nginx configuration uses lowercase `m` and includes a semicolon (e.g., `client_max_body_size 256m;`).
+*   Configuration is written to `/etc/nginx/sites-available/${current_site}/server/client_max_body_size.conf`.
+
+**Usage:**
+```bash
+wp-server max-upload [-m <megabytes>]
+```
+
+**Options:**
+*   `-m, --mb <megabytes>`: (Optional) Specify the upload size in megabytes. If this option is not provided, the script will attempt to read the existing value from the site's `.user.ini` file. If no value is found, it will prompt the user to enter one.
+
+**Examples:**
+```bash
+# Set the max upload size to 256 MB
+wp-server max-upload -m 256
+
+# Run in interactive mode to view the current upload size or set a new one
+wp-server max-upload
+```
+
 ### `cache <sub-command>`
 This command group is for managing the site's cache. These commands are only available if the site has the SpinupWP plugin active.
 
