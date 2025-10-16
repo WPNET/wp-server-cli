@@ -376,6 +376,10 @@ case "$COMMAND" in
     CURRENT_UPLOAD=""
     if [ -f "$USER_INI_PATH" ]; then
       CURRENT_UPLOAD=$(grep "upload_max_filesize" "$USER_INI_PATH" | cut -d'=' -f2 | tr -d ' ' | sed 's/[^0-9]*//g')
+      # Validate that CURRENT_UPLOAD is a valid number
+      if [ -n "$CURRENT_UPLOAD" ] && ! [[ "$CURRENT_UPLOAD" =~ ^[0-9]+$ ]]; then
+        CURRENT_UPLOAD=""
+      fi
     fi
 
     # Only update upload_max_filesize if explicit size was provided or it doesn't exist
@@ -413,6 +417,10 @@ case "$COMMAND" in
     CURRENT_POST=""
     if [ -f "$USER_INI_PATH" ]; then
       CURRENT_POST=$(grep "post_max_size" "$USER_INI_PATH" | cut -d'=' -f2 | tr -d ' ' | sed 's/[^0-9]*//g')
+      # Validate that CURRENT_POST is a valid number
+      if [ -n "$CURRENT_POST" ] && ! [[ "$CURRENT_POST" =~ ^[0-9]+$ ]]; then
+        CURRENT_POST=""
+      fi
     fi
 
     if [ -n "$CURRENT_POST" ] && [ "$CURRENT_POST" -eq "$DESIRED_POST_MAX" ]; then
@@ -445,6 +453,10 @@ case "$COMMAND" in
 
   if [ -f "$NGINX_CONF_PATH" ]; then
     NGINX_CURRENT_UPLOAD=$(grep "client_max_body_size" "$NGINX_CONF_PATH" | cut -d' ' -f2 | sed 's/m;//g' | sed 's/[^0-9]*//g')
+    # Validate that NGINX_CURRENT_UPLOAD is a valid number
+    if [ -n "$NGINX_CURRENT_UPLOAD" ] && ! [[ "$NGINX_CURRENT_UPLOAD" =~ ^[0-9]+$ ]]; then
+      NGINX_CURRENT_UPLOAD=""
+    fi
   fi
 
   if [ -n "$NGINX_CURRENT_UPLOAD" ] && [ "$NGINX_CURRENT_UPLOAD" -eq "$UPLOAD_VALUE" ]; then
