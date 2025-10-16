@@ -1,6 +1,6 @@
 #!/bin/bash
 # WP Server - CLI Tool
-VERSION="1.6.4"
+VERSION="1.6.6"
 
 # Web root path (relative to user home directory)
 WEBROOT_PATH="files"
@@ -75,13 +75,13 @@ function print_usage() {
   echo -e "${CYAN}Usage:${RESET}    wp-server ${GREEN}<command>${RESET}"
   echo ""
   echo -e "${CYAN}Commands:${RESET}"
-  echo -e "  ${GREEN}restart <service>${RESET}      Restart a service"
-  echo -e "  ${GREEN}timeout [-s <seconds>]${RESET} Set PHP and Nginx timeouts for the current site. If -s is not provided, the value will be read from .user.ini or prompted."
-  echo -e "  ${GREEN}max-upload [-m <megabytes>]${RESET} Set max upload size for PHP and Nginx. If -m is not provided, the value will be read from .user.ini or prompted."
+  echo -e "  ${GREEN}restart <service>${RESET}           Restart a service"
+  echo -e "  ${GREEN}timeout [-s <seconds>]${RESET}      Set PHP & Nginx timeouts for the current site. If -s is not provided, the value will be read from .user.ini or prompted."
+  echo -e "  ${GREEN}max-upload [-m <megabytes>]${RESET} Set PHP & Nginx max upload size for the current site. If -m is not provided, the value will be read from .user.ini or prompted."
   if $SPINUPWP_ACTIVE; then
-    echo -e "  ${GREEN}cache status${RESET}           Show cache status"
-    echo -e "  ${GREEN}cache purge-page${RESET}       Purge Nginx page cache"
-    echo -e "  ${GREEN}cache purge-object${RESET}     Purge PHP Object cache (equivalent to wp cache flush)"
+    echo -e "  ${GREEN}cache status${RESET}                Show cache status"
+    echo -e "  ${GREEN}cache purge-page${RESET}            Purge Nginx page cache"
+    echo -e "  ${GREEN}cache purge-object${RESET}          Purge PHP Object cache (equivalent to wp cache flush)"
   fi
   echo ""
   echo -e "${CYAN}Services for 'restart':${RESET}"
@@ -168,7 +168,7 @@ case "$COMMAND" in
   ;;
   cache)
   if ! $SPINUPWP_ACTIVE; then
-    echo "Error: Cache commands are not available because the SpinupWP plugin is not active."
+    echo "Error: Not available because the Cache Control plugin is not active."
     exit 1
   fi
   if [ -z "$CURRENT_USER" ] || [ -z "$USER_HOME_PATH" ]; then
@@ -448,7 +448,7 @@ case "$COMMAND" in
   fi
 
   # UPLOAD_VALUE is guaranteed to be set. Proceed with Nginx config.
-  NGINX_CONF_PATH="/etc/nginx/sites-available/$SITE_NAME/server/client_max_body_size.conf"
+  NGINX_CONF_PATH="/etc/nginx/sites-available/$SITE_NAME/server/client-max-body-size.conf"
   NGINX_CURRENT_UPLOAD=""
 
   if [ -f "$NGINX_CONF_PATH" ]; then
