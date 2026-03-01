@@ -6,7 +6,7 @@
 - **Service Management**: Restart PHP, Nginx, MySQL, and Redis services
 - **PHP Configuration**: Set timeout, memory limit, max upload size, and max input variables
 - **Web Server Configuration**: Configure Nginx settings for upload size and timeouts
-- **Cache Management**: Purge page and object caches (requires SpinupWP plugin)
+- **Cache Management**: Purge page and object caches
 - **PHP FPM Pool Configuration**: All PHP settings are written directly to PHP-FPM pool config files for the site user
 
 ## Installation
