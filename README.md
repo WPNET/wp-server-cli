@@ -59,24 +59,25 @@ wp-server timeout [-s <seconds>]
 ```
 
 **Options:**
-*   `-s, --set <seconds>`: (Optional) Specify the timeout value in seconds. If this option is not provided, the script will attempt to read the existing value from the site's `.user.ini` file. If no value is found, it will prompt the user to enter one.
+*   `-s, --set <seconds>`: (Optional) Specify the timeout value in seconds. If this option is not provided, you will be prompted to enter one.
+
+**PHP Configuration:**
+The timeout value is written to `/etc/php/{php_version}/fpm/pool.d/{site_user}.conf` as `php_admin_value[max_execution_time]`.
+
+**Nginx Configuration:**
+The timeout value is written to `/etc/nginx/sites-available/{site_name}/location/fastcgi-timeout.conf`.
 
 **Examples:**
 ```bash
 # Set the timeout to 300 seconds
 wp-server timeout -s 300
 
-# Run in interactive mode to view the current timeout or set a new one
+# Run in interactive mode to set a new timeout
 wp-server timeout
 ```
 
 ### `max-upload [-m <megabytes>]`
 This command sets the maximum upload size for PHP and Nginx on the current site.
-
-**Behavior:**
-*   If `.user.ini` contains `upload_max_filesize`, that value is authoritative.
-*   The script will ensure `post_max_size` is set to `upload_max_filesize + 2 MB` (updating `.user.ini` if necessary).
-*   Configuration is written to `/etc/nginx/sites-available/${current_site}/server/client-max-body-size.conf`.
 
 **Usage:**
 ```bash
@@ -84,15 +85,36 @@ wp-server max-upload [-m <megabytes>]
 ```
 
 **Options:**
-*   `-m, --mb <megabytes>`: (Optional) Specify the upload size in megabytes. If this option is not provided, the script will attempt to read the existing value from the site's `.user.ini` file. If no value is found, it will prompt the user to enter one.
+*   `-m, --mb <megabytes>`: (Optional) Specify the upload size in megabytes. If this option is not provided, you will be prompted to enter one.
+
+**PHP Configuration:**
+The upload settings are written to `/etc/php/{php_version}/fpm/pool.d/{site_user}.conf`:
+*   `php_admin_value[upload_max_filesize] = {value}M`
+*   `php_admin_value[post_max_size] = {value + 2}M`
+
+**Nginx Configuration:**
+The upload size is written to `/etc/nginx/sites-available/{site_name}/server/client-max-body-size.conf`.
 
 **Examples:**
 ```bash
 # Set the max upload size to 256 MB
 wp-server max-upload -m 256
 
-# Run in interactive mode to view the current upload size or set a new one
+# Run in interactive mode to set a new upload size
 wp-server max-upload
+```
+
+### `remove-user-ini`
+This command removes the `.user.ini` file from the webroot if it exists. This can be used to clean up old configuration files after migrating to PHP FPM pool configuration.
+
+**Usage:**
+```bash
+wp-server remove-user-ini
+```
+
+**Example:**
+```bash
+wp-server remove-user-ini
 ```
 
 ### `cache <sub-command>`
