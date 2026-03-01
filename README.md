@@ -1,5 +1,13 @@
 # wp-server
-`wp-server` is a command-line tool for managing common server and site-specific operations. It provides "site" users with simple CLI tools for tasks such as restarting services, managing caches and adjusting timeouts and max upload limits.
+`wp-server` is a command-line tool for managing common server and site-specific operations. It provides "site" users with simple CLI tools for tasks such as restarting services, managing caches, and adjusting PHP and web server settings.
+
+## Features
+
+- **Service Management**: Restart PHP, Nginx, MySQL, and Redis services
+- **PHP Configuration**: Set timeout, memory limit, max upload size, and max input variables
+- **Web Server Configuration**: Configure Nginx settings for upload size and timeouts
+- **Cache Management**: Purge page and object caches (requires SpinupWP plugin)
+- **PHP FPM Pool Configuration**: All PHP settings are written directly to PHP-FPM pool config files for the site user
 
 ## Installation
 
@@ -27,6 +35,17 @@ To see the list of available commands, run the script with no arguments:
 ```bash
 wp-server
 ```
+
+## PHP Configuration
+
+All PHP configuration changes made by this tool are written directly to the PHP-FPM pool configuration file located at:
+```
+/etc/php/{php_version}/fpm/pool.d/{site_user}.conf
+```
+
+The tool automatically detects the PHP version in use by determining the site user from the home directory ownership and finding the corresponding PHP-FPM pool configuration file. After making changes, the PHP service is automatically restarted to apply the new settings.
+
+**Note:** This tool no longer uses `.user.ini` files for PHP configuration. If you have existing `.user.ini` files, you can safely remove them using the `remove-user-ini` command.
 
 ## Commands
 
@@ -104,6 +123,52 @@ wp-server max-upload -m 256
 wp-server max-upload
 ```
 
+### `max-input-vars [-v <count>]`
+This command sets the PHP `max_input_vars` setting for the current site. This determines the maximum number of input variables that may be accepted (useful for forms with many fields).
+
+**Usage:**
+```bash
+wp-server max-input-vars [-v <count>]
+```
+
+**Options:**
+*   `-v <count>`: (Optional) Specify the max input variables count. If this option is not provided, you will be prompted to enter one.
+
+**PHP Configuration:**
+The setting is written to `/etc/php/{php_version}/fpm/pool.d/{site_user}.conf` as `php_admin_value[max_input_vars]`.
+
+**Examples:**
+```bash
+# Set max input vars to 5000
+wp-server max-input-vars -v 5000
+
+# Run in interactive mode
+wp-server max-input-vars
+```
+
+### `memory-limit [-m <megabytes>]`
+This command sets the PHP `memory_limit` for the current site. This determines the maximum amount of memory a script may consume.
+
+**Usage:**
+```bash
+wp-server memory-limit [-m <megabytes>]
+```
+
+**Options:**
+*   `-m <megabytes>`: (Optional) Specify the memory limit in megabytes. If this option is not provided, you will be prompted to enter one.
+
+**PHP Configuration:**
+The setting is written to `/etc/php/{php_version}/fpm/pool.d/{site_user}.conf` as `php_admin_value[memory_limit]`.
+
+**Examples:**
+```bash
+# Set memory limit to 256 MB
+wp-server memory-limit -m 256
+
+# Run in interactive mode
+wp-server memory-limit
+```
+
 ### `remove-user-ini`
 This command removes the `.user.ini` file from the webroot if it exists. This can be used to clean up old configuration files after migrating to PHP FPM pool configuration.
 
@@ -136,10 +201,13 @@ wp-server cache <sub-command>
 wp-server cache purge-page
 ```
 
-### `version` or `-v`
+### `-v` or `--version`
 Displays the current version of the `wp-server` script.
 
 **Usage:**
 ```bash
-wp-server version
+wp-server -v
+wp-server --version
 ```
+
+**Note:** The version is also displayed at the top of the help text when you run `wp-server` without any arguments.
