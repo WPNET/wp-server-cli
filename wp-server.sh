@@ -1,6 +1,6 @@
 #!/bin/bash
 # WP Server - CLI Tool
-VERSION="1.6.17"
+VERSION="1.6.19"
 
 # Web root path (relative to user home directory)
 WEBROOT_BASE_DIR="files"
@@ -9,16 +9,30 @@ WEBROOT_PATH=""
 # Function to determine the correct webroot path
 function determine_webroot_path() {
   local user_home="$1"
-  local default_webroot="${WEBROOT_BASE_DIR}"
-  local custom_webroot="${WEBROOT_BASE_DIR}/public"
-
-  if [ -f "$user_home/$default_webroot/wp-load.php" ]; then
-    echo "$default_webroot"
-  elif [ -f "$user_home/$custom_webroot/wp-load.php" ]; then
-    echo "$custom_webroot"
+  
+  # Check if home directory already ends with /files (edge case)
+  if [[ "$user_home" == */files ]]; then
+    # Home is /sites/sitename.com/files
+    # Webroot is either /sites/sitename.com/files or /sites/sitename.com/files/public
+    if [ -f "$user_home/wp-load.php" ]; then
+      echo ""  # Empty string means use $HOME directly
+    elif [ -f "$user_home/public/wp-load.php" ]; then
+      echo "public"  # Relative path from $HOME
+    else
+      echo ""  # Default to empty
+      echo "Warning: wp-load.php not found in '$user_home' or '$user_home/public'. Defaulting to home directory." >&2
+    fi
   else
-    echo "$default_webroot"
-    echo "Warning: wp-load.php not found in '$user_home/$default_webroot' or '$user_home/$custom_webroot'. Defaulting to '$default_webroot'." >&2
+    # Normal case: Home is /sites/sitename.com
+    # Webroot is either /sites/sitename.com/files or /sites/sitename.com/files/public
+    if [ -f "$user_home/files/wp-load.php" ]; then
+      echo "files"
+    elif [ -f "$user_home/files/public/wp-load.php" ]; then
+      echo "files/public"
+    else
+      echo "files"  # Default to files
+      echo "Warning: wp-load.php not found in '$user_home/files' or '$user_home/files/public'. Defaulting to 'files'." >&2
+    fi
   fi
 }
 
