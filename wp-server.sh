@@ -1,9 +1,26 @@
 #!/bin/bash
 # WP Server - CLI Tool
-VERSION="1.6.13"
+VERSION="1.6.17"
 
 # Web root path (relative to user home directory)
-WEBROOT_PATH="files"
+WEBROOT_BASE_DIR="files"
+WEBROOT_PATH=""
+
+# Function to determine the correct webroot path
+function determine_webroot_path() {
+  local user_home="$1"
+  local default_webroot="${WEBROOT_BASE_DIR}"
+  local custom_webroot="${WEBROOT_BASE_DIR}/public"
+
+  if [ -f "$user_home/$default_webroot/wp-load.php" ]; then
+    echo "$default_webroot"
+  elif [ -f "$user_home/$custom_webroot/wp-load.php" ]; then
+    echo "$custom_webroot"
+  else
+    echo "$default_webroot"
+    echo "Warning: wp-load.php not found in '$user_home/$default_webroot' or '$user_home/$custom_webroot'. Defaulting to '$default_webroot'." >&2
+  fi
+}
 
 # Check if mysql-server package is installed
 dpkg -s mysql-server &> /dev/null
@@ -43,6 +60,13 @@ if [ -n "$SUDO_USER" ]; then
 else
   CURRENT_USER=""
   USER_HOME_PATH=""
+fi
+
+# Determine WEBROOT_PATH after USER_HOME_PATH is set
+if [ -n "$USER_HOME_PATH" ]; then
+  WEBROOT_PATH=$(determine_webroot_path "$USER_HOME_PATH")
+else
+  WEBROOT_PATH="" # Keep WEBROOT_PATH empty if user home path is not determined
 fi
 
 # Color codes
